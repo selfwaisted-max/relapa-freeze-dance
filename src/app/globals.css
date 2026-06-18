@@ -397,4 +397,89 @@
   cursor: pointer;
 }
 
+/* ============================================================
+   Character Skins — color themes via CSS variables
+   Default = classic papaya (no class needed; vars fall back).
+   ============================================================ */
+
+/* Strawberry — red/pink */
+.papaya.skin-strawberry {
+  --p-flesh-top: #fecaca;
+  --p-flesh-mid: #f87171;
+  --p-flesh-bot: #dc2626;
+  --p-skin-top: #bbf7d0;
+  --p-skin-bot: #15803d;
+  --p-cav-top: #fca5a5;
+  --p-cav-mid: #ef4444;
+  --p-cav-bot: #7f1d1d;
+  --p-limb-top: #f87171;
+  --p-limb-bot: #dc2626;
+  --p-leaf-top: #86efac;
+  --p-leaf-bot: #166534;
+  --p-stem: #166534;
+  --p-outline: #7f1d1d;
+  --p-seed: #fef2f2;
+  --p-cheek: #fb7185;
+}
+
+/* Blueberry — blue/purple */
+.papaya.skin-blueberry {
+  --p-flesh-top: #c7d2fe;
+  --p-flesh-mid: #818cf8;
+  --p-flesh-bot: #4f46e5;
+  --p-skin-top: #a5b4fc;
+  --p-skin-bot: #3730a3;
+  --p-cav-top: #93c5fd;
+  --p-cav-mid: #3b82f6;
+  --p-cav-bot: #1e3a8a;
+  --p-limb-top: #818cf8;
+  --p-limb-bot: #4f46e5;
+  --p-leaf-top: #86efac;
+  --p-leaf-bot: #166534;
+  --p-stem: #166534;
+  --p-outline: #1e1b4b;
+  --p-seed: #fef9c3;
+  --p-cheek: #f0abfc;
+}
+
+/* Grape — purple/violet */
+.papaya.skin-grape {
+  --p-flesh-top: #e9d5ff;
+  --p-flesh-mid: #c084fc;
+  --p-flesh-bot: #9333ea;
+  --p-skin-top: #d8b4fe;
+  --p-skin-bot: #6b21a8;
+  --p-cav-top: #d8b4fe;
+  --p-cav-mid: #a855f7;
+  --p-cav-bot: #581c87;
+  --p-limb-top: #c084fc;
+  --p-limb-bot: #9333ea;
+  --p-leaf-top: #86efac;
+  --p-leaf-bot: #166534;
+  --p-stem: #166534;
+  --p-outline: #3b0764;
+  --p-seed: #fef9c3;
+  --p-cheek: #fb7185;
+}
+
+/* Lime — green/yellow */
+.papaya.skin-lime {
+  --p-flesh-top: #ecfccb;
+  --p-flesh-mid: #bef264;
+  --p-flesh-bot: #65a30d;
+  --p-skin-top: #d9f99d;
+  --p-skin-bot: #3f6212;
+  --p-cav-top: #d9f99d;
+  --p-cav-mid: #84cc16;
+  --p-cav-bot: #365314;
+  --p-limb-top: #bef264;
+  --p-limb-bot: #65a30d;
+  --p-leaf-top: #bbf7d0;
+  --p-leaf-bot: #14532d;
+  --p-stem: #14532d;
+  --p-outline: #365314;
+  --p-seed: #fef9c3;
+  --p-cheek: #fb7185;
+}
+
 

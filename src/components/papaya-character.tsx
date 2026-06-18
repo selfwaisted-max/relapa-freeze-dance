@@ -20,11 +20,23 @@ export type CharState =
   | 'frozen'
   | 'gameover'
 
+export type Skin = 'papaya' | 'strawberry' | 'blueberry' | 'grape' | 'lime'
+
+export const SKINS: { id: Skin; label: string; emoji: string }[] = [
+  { id: 'papaya', label: 'Папайа', emoji: '🥭' },
+  { id: 'strawberry', label: 'Клубника', emoji: '🍓' },
+  { id: 'blueberry', label: 'Черника', emoji: '🫐' },
+  { id: 'grape', label: 'Виноград', emoji: '🍇' },
+  { id: 'lime', label: 'Лайм', emoji: '🟢' },
+]
+
 export function PapayaCharacter({
   state,
+  skin = 'papaya',
   className = '',
 }: {
   state: CharState
+  skin?: Skin
   className?: string
 }) {
   const isDancing =
@@ -38,6 +50,7 @@ export function PapayaCharacter({
 
   const cls = [
     'papaya',
+    skin !== 'papaya' ? `skin-${skin}` : '',
     isDancing ? 'is-dancing' : 'is-idle',
     isFrozen ? 'is-frozen' : '',
     isSad ? 'is-sad' : '',
@@ -56,30 +69,30 @@ export function PapayaCharacter({
     >
       <defs>
         <linearGradient id="papayaFlesh" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fde047" />
-          <stop offset="45%" stopColor="#fbbf24" />
-          <stop offset="100%" stopColor="#f97316" />
+          <stop offset="0%" stopColor="var(--p-flesh-top, #fde047)" />
+          <stop offset="45%" stopColor="var(--p-flesh-mid, #fbbf24)" />
+          <stop offset="100%" stopColor="var(--p-flesh-bot, #f97316)" />
         </linearGradient>
         <linearGradient id="papayaSkin" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#bef264" />
-          <stop offset="100%" stopColor="#65a30d" />
+          <stop offset="0%" stopColor="var(--p-skin-top, #bef264)" />
+          <stop offset="100%" stopColor="var(--p-skin-bot, #65a30d)" />
         </linearGradient>
         <radialGradient id="papayaCavity" cx="50%" cy="45%" r="60%">
-          <stop offset="0%" stopColor="#fb923c" />
-          <stop offset="70%" stopColor="#ea580c" />
-          <stop offset="100%" stopColor="#9a3412" />
+          <stop offset="0%" stopColor="var(--p-cav-top, #fb923c)" />
+          <stop offset="70%" stopColor="var(--p-cav-mid, #ea580c)" />
+          <stop offset="100%" stopColor="var(--p-cav-bot, #9a3412)" />
         </radialGradient>
         <linearGradient id="papayaLimb" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fb923c" />
-          <stop offset="100%" stopColor="#ea580c" />
+          <stop offset="0%" stopColor="var(--p-limb-top, #fb923c)" />
+          <stop offset="100%" stopColor="var(--p-limb-bot, #ea580c)" />
         </linearGradient>
         <linearGradient id="papayaLeaf" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#86efac" />
-          <stop offset="100%" stopColor="#4d7c0f" />
+          <stop offset="0%" stopColor="var(--p-leaf-top, #86efac)" />
+          <stop offset="100%" stopColor="var(--p-leaf-bot, #4d7c0f)" />
         </linearGradient>
         <radialGradient id="papayaCheek" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#fb7185" stopOpacity="0.75" />
-          <stop offset="100%" stopColor="#fb7185" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--p-cheek, #fb7185)" stopOpacity="0.75" />
+          <stop offset="100%" stopColor="var(--p-cheek, #fb7185)" stopOpacity="0" />
         </radialGradient>
       </defs>
 
@@ -103,10 +116,10 @@ export function PapayaCharacter({
             rx="10"
             fill="url(#papayaLimb)"
             opacity="0.95"
-            stroke="#9a3412"
+            stroke="var(--p-outline, #9a3412)"
             strokeWidth="1.5"
           />
-          <circle cx="76" cy="278" r="13" fill="#fb923c" stroke="#9a3412" strokeWidth="1.5" />
+          <circle cx="76" cy="278" r="13" fill="var(--p-limb-top, #fb923c)" stroke="var(--p-outline, #9a3412)" strokeWidth="1.5" />
         </g>
 
         {/* ===== hips group (LOWER body half: belly + seed cavity + seeds).
@@ -118,7 +131,7 @@ export function PapayaCharacter({
           <ellipse cx="150" cy="300" rx="85" ry="80" fill="url(#papayaFlesh)" />
           {/* seed cavity + seeds */}
           <ellipse cx="150" cy="288" rx="46" ry="56" fill="url(#papayaCavity)" />
-          <g fill="#1c1917">
+          <g fill="var(--p-seed, #1c1917)">
             <ellipse cx="150" cy="258" rx="5" ry="7" />
             <ellipse cx="132" cy="270" rx="4.5" ry="6" />
             <ellipse cx="168" cy="270" rx="4.5" ry="6" />
@@ -156,7 +169,7 @@ export function PapayaCharacter({
               width="8"
               height="22"
               rx="4"
-              fill="#4d7c0f"
+              fill="var(--p-stem, #4d7c0f)"
             />
             <path
               d="M150 68 C 128 50, 104 52, 96 68 C 116 76, 138 76, 150 68 Z"
@@ -222,10 +235,10 @@ export function PapayaCharacter({
             height="78"
             rx="10"
             fill="url(#papayaLimb)"
-            stroke="#9a3412"
+            stroke="var(--p-outline, #9a3412)"
             strokeWidth="1.5"
           />
-          <circle cx="224" cy="278" r="13" fill="#fb923c" stroke="#9a3412" strokeWidth="1.5" />
+          <circle cx="224" cy="278" r="13" fill="var(--p-limb-top, #fb923c)" stroke="var(--p-outline, #9a3412)" strokeWidth="1.5" />
         </g>
       </g>
     </svg>

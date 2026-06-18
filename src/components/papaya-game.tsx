@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { ChuckyEngine } from '@/lib/music'
-import { PapayaCharacter } from '@/components/papaya-character'
+import { PapayaCharacter, SKINS, type Skin } from '@/components/papaya-character'
 import {
   ACHIEVEMENTS,
   loadUnlocked,
@@ -102,9 +102,12 @@ export default function PapayaGame() {
   const [soundOn, setSoundOn] = useState(true)
   const [volume, setVolume] = useState(0.5)
   const [difficulty, setDifficulty] = useState<Difficulty>('normal')
+  const [skin, setSkin] = useState<Skin>('papaya')
   const [confetti, setConfetti] = useState(false)
   const [combo, setCombo] = useState(0) // consecutive freezes (resets on miss/early)
   const [bestCombo, setBestCombo] = useState(0) // best combo this run
+  const [perfectFreezes, setPerfectFreezes] = useState(0) // ideal-timing freezes this run
+  const [triedSkins, setTriedSkins] = useState<Set<Skin>>(new Set(['papaya']))
   const [personalBest, setPersonalBest] = useState<number | null>(null)
   const [isNewBest, setIsNewBest] = useState(false)
   const [unlockedAch, setUnlockedAch] = useState<Set<string>>(new Set())
@@ -172,10 +175,40 @@ export default function PapayaGame() {
         const parsed = JSON.parse(stats)
         if (parsed && typeof parsed === 'object') setSessionStats(parsed)
       }
+      const savedSkin = localStorage.getItem('papaya-skin')
+      if (savedSkin) {
+        setSkin(savedSkin as Skin)
+      }
+      const triedRaw = localStorage.getItem('papaya-tried-skins')
+      if (triedRaw) {
+        const arr = JSON.parse(triedRaw) as string[]
+        if (Array.isArray(arr)) setTriedSkins(new Set(arr as Skin[]))
+      }
     } catch {
       /* ignore */
     }
   }, [])
+
+  // Persist skin choice + track tried skins for achievement
+  const changeSkin = (s: Skin) => {
+    setSkin(s)
+    setTriedSkins((prev) => {
+      if (prev.has(s)) return prev
+      const next = new Set(prev)
+      next.add(s)
+      try {
+        localStorage.setItem('papaya-tried-skins', JSON.stringify([...next]))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+    try {
+      localStorage.setItem('papaya-skin', s)
+    } catch {
+      /* ignore */
+    }
+  }
 
   // Combo multiplier: every 3 consecutive freezes adds +0.5x (capped at 3x)
   const comboMultiplier = Math.min(3, 1 + Math.floor(combo / 3) * 0.5)
@@ -439,6 +472,7 @@ export default function PapayaGame() {
     setRound(newRound)
     setCombo(newCombo)
     if (newCombo > bestCombo) setBestCombo(newCombo)
+    if (isPerfect) setPerfectFreezes((p) => p + 1)
     if (soundOnRef.current) engineRef.current?.sting('success')
     const timingLabel = isPerfect ? ' ИДЕАЛ!' : isGood ? ' Хорошо!' : ''
     const multLabel = newMult > 1 ? ` ×${newMult.toFixed(1)}` : ''
@@ -447,6 +481,7 @@ export default function PapayaGame() {
     )
 
     // Check achievements with the updated stats (include timing bonus in score)
+    const newPerfectFreezes = perfectFreezes + (isPerfect ? 1 : 0)
     const runScore = Math.floor(
       newFreezes * 100 * newMult * bonusMult + Math.floor(danceSeconds)
     )
@@ -457,6 +492,8 @@ export default function PapayaGame() {
       danceSeconds: Math.floor(danceSeconds),
       round: newRound,
       score: runScore,
+      perfectFreezes: newPerfectFreezes,
+      skinsUnlocked: triedSkins.size,
     })
 
     // Celebrate milestones: every 5 freezes triggers confetti
@@ -987,7 +1024,7 @@ export default function PapayaGame() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ type: 'spring', stiffness: 200, damping: 18 }}
             >
-              <PapayaCharacter state={state} />
+              <PapayaCharacter state={state} skin={skin} />
             </motion.div>
 
             {/* floating notes while dancing */}
@@ -1080,6 +1117,33 @@ export default function PapayaGame() {
                           )
                         }
                       )}
+                    </div>
+                  </div>
+                  {/* skin selector */}
+                  <div className="flex w-full flex-col gap-1.5">
+                    <span className="text-center text-[10px] uppercase tracking-wider text-red-300/60">
+                      Персонаж
+                    </span>
+                    <div className="flex w-full justify-center gap-1.5">
+                      {SKINS.map((s) => {
+                        const active = skin === s.id
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => changeSkin(s.id)}
+                            title={s.label}
+                            aria-label={s.label}
+                            className={`flex h-9 w-9 items-center justify-center rounded-lg border text-lg transition-all ${
+                              active
+                                ? 'border-amber-400/60 bg-amber-500/20 ring-1 ring-amber-400/40'
+                                : 'border-red-900/40 bg-black/30 opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            {s.emoji}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                   <div className="flex w-full gap-2">

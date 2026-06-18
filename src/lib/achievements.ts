@@ -12,6 +12,8 @@ export type AchievementStats = {
   danceSeconds: number
   round: number
   score: number
+  perfectFreezes?: number
+  skinsUnlocked?: number
 }
 
 export type Achievement = {
@@ -92,6 +94,27 @@ export const ACHIEVEMENTS: Achievement[] = [
     desc: 'Набрать 1000 очков',
     icon: '🏆',
     check: (s) => s.score >= 1000,
+  },
+  {
+    id: 'perfect-5',
+    title: 'Снайпер',
+    desc: '5 идеальных замри (ИДЕАЛ!)',
+    icon: '🎯',
+    check: (s) => (s.perfectFreezes ?? 0) >= 5,
+  },
+  {
+    id: 'score-2000',
+    title: 'Легенда',
+    desc: 'Набрать 2000 очков',
+    icon: '👑',
+    check: (s) => s.score >= 2000,
+  },
+  {
+    id: 'skin-collector',
+    title: 'Модник',
+    desc: 'Попробовать все скины персонажа',
+    icon: '🎨',
+    check: (s) => (s.skinsUnlocked ?? 0) >= 5,
   },
 ]
 

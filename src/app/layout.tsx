@@ -14,13 +14,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Замри, Папайа! — Танцевальная игра",
-  description: "Папайа танцует под жуткую музыку Чакки. Успей нажать ПРОБЕЛ, когда музыка стихнет!",
-  keywords: ["игра", "танцы", "замри", "папайа", "freeze dance", "игра на реакцию"],
+  title: "Freeze, Papaya! — Dance Game",
+  description: "Papaya dances to creepy Chucky music. Hit SPACE when the music stops!",
+  keywords: ["game", "dance", "freeze", "papaya", "freeze dance", "reaction game"],
   authors: [{ name: "Z.ai" }],
   openGraph: {
-    title: "Замри, Папайа!",
-    description: "Танцевальная игра на реакцию под музыку Чакки",
+    title: "Freeze, Papaya!",
+    description: "A reaction-based dance game with Chucky-style music",
     type: "website",
   },
 };

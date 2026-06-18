@@ -37,15 +37,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (!playerName || typeof playerName !== 'string') {
-      return NextResponse.json({ error: 'Имя обязательно' }, { status: 400 })
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
     if (typeof score !== 'number' || score < 0) {
-      return NextResponse.json({ error: 'Некорректный счёт' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid score' }, { status: 400 })
     }
 
     const created = await db.score.create({
       data: {
-        playerName: playerName.trim().slice(0, 24) || 'Аноним',
+        playerName: playerName.trim().slice(0, 24) || 'Anonymous',
         score: Math.floor(score),
         danceSeconds: Math.floor(danceSeconds ?? 0),
         freezes: Math.floor(freezes ?? 0),
@@ -56,6 +56,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, score: created })
   } catch (error) {
     console.error('Failed to save score:', error)
-    return NextResponse.json({ error: 'Не удалось сохранить счёт' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to save score' }, { status: 500 })
   }
 }

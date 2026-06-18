@@ -71,9 +71,9 @@ const DIFFICULTY_PRESETS: Record<
   Difficulty,
   { baseWindow: number; minWindow: number; musicMin: number; musicMax: number; label: string }
 > = {
-  easy: { baseWindow: 1900, minWindow: 1200, musicMin: 4000, musicMax: 7500, label: 'Лёгкий' },
-  normal: { baseWindow: 1500, minWindow: 850, musicMin: 3000, musicMax: 6500, label: 'Обычный' },
-  hard: { baseWindow: 1100, minWindow: 600, musicMin: 2500, musicMax: 5500, label: 'Сложный' },
+  easy: { baseWindow: 1900, minWindow: 1200, musicMin: 4000, musicMax: 7500, label: 'Easy' },
+  normal: { baseWindow: 1500, minWindow: 850, musicMin: 3000, musicMax: 6500, label: 'Normal' },
+  hard: { baseWindow: 1100, minWindow: 600, musicMin: 2500, musicMax: 5500, label: 'Hard' },
 }
 
 // Reaction window shrinks with rounds, clamped to the difficulty's min.
@@ -408,7 +408,7 @@ export default function PapayaGame() {
     // save score once
     if (!savedThisRun) {
       setSavedThisRun(true)
-      const name = playerName.trim() || 'Аноним'
+      const name = playerName.trim() || 'Anonymous'
       // Check + persist personal best (localStorage)
       try {
         const stored = localStorage.getItem('papaya-best-score')
@@ -484,10 +484,10 @@ export default function PapayaGame() {
 
   // ----- share score -----
   const shareScore = async () => {
-    const text = `🥭 Замри, Папайа! Счёт: ${score} (Замри: ${freezes}, В танце: ${danceSeconds.toFixed(1)}с, Макс. комбо: ${bestCombo}, Лучшая реакция: ${Math.round(bestFreezeTiming * 100)}%)${lastSavedRank ? ` — #${lastSavedRank} в таблице!` : ''}`
+    const text = `🥭 Freeze, Papaya! Score: ${score} (Freezes: ${freezes}, Danced: ${danceSeconds.toFixed(1)}s, Best combo: ${bestCombo}, Best reaction: ${Math.round(bestFreezeTiming * 100)}%)${lastSavedRank ? ` — #${lastSavedRank} on the leaderboard!` : ''}`
     try {
       if (navigator.share) {
-        await navigator.share({ title: 'Замри, Папайа!', text })
+        await navigator.share({ title: 'Freeze, Papaya!', text })
       } else {
         await navigator.clipboard.writeText(text)
         setShared(true)
@@ -579,10 +579,10 @@ export default function PapayaGame() {
       },
     ])
     if (soundOnRef.current) engineRef.current?.sting('success')
-    const timingLabel = isPerfect ? ' ИДЕАЛ!' : isGood ? ' Хорошо!' : ''
+    const timingLabel = isPerfect ? ' PERFECT!' : isGood ? ' Good!' : ''
     const multLabel = newMult > 1 ? ` ×${newMult.toFixed(1)}` : ''
     showFlash(
-      `Замри! +${newRound - 1}${multLabel} 🔥${newCombo}${timingLabel}`
+      `Freeze! +${newRound - 1}${multLabel} 🔥${newCombo}${timingLabel}`
     )
 
     // Check achievements with the updated stats (include timing bonus in score)
@@ -921,23 +921,23 @@ export default function PapayaGame() {
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-900/50 ring-2 ring-red-500/40">
                 <Pause className="h-7 w-7 text-red-300" />
               </div>
-              <h2 className="text-xl font-black text-red-200">ПАУЗА</h2>
+              <h2 className="text-xl font-black text-red-200">PAUSED</h2>
               <p className="max-w-xs text-xs text-red-300/70">
-                Музыка и таймер остановлены. Нажми «Продолжить», клавишу{' '}
+                Music and timer are stopped. Click Resume, press{' '}
                 <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
                   P
                 </kbd>{' '}
-                или{' '}
+                or{' '}
                 <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
                   Esc
                 </kbd>
-                , чтобы вернуться к танцам.
+                to get back to dancing.
               </p>
               <Button
                 onClick={togglePause}
                 className="bg-red-700 hover:bg-red-600"
               >
-                <Play className="mr-1 h-4 w-4" /> Продолжить
+                <Play className="mr-1 h-4 w-4" /> Resume
               </Button>
             </motion.div>
           </motion.div>
@@ -953,10 +953,10 @@ export default function PapayaGame() {
             </div>
             <div>
               <h1 className="text-lg font-black tracking-tight text-red-200 sm:text-xl">
-                ЗАМРИ, ПАПАЙА!
+                FREEZE, PAPAYA!
               </h1>
               <p className="text-[11px] text-red-300/70">
-                Танцуй под музыку Чакки — замри, когда музыка стихнет
+                Dance to Chucky's music — freeze when the music stops
               </p>
             </div>
           </div>
@@ -965,26 +965,26 @@ export default function PapayaGame() {
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <StatChip
               icon={<Timer className="h-4 w-4" />}
-              label="Секунд в танце"
+              label="Seconds danced"
               value={danceSeconds.toFixed(1)}
               tone="amber"
               big
             />
             <StatChip
               icon={<Hand className="h-4 w-4" />}
-              label="Замри"
+              label="Freezes"
               value={String(freezes)}
               tone="emerald"
             />
             <StatChip
               icon={<Sparkles className="h-4 w-4" />}
-              label="Раунд"
+              label="Round"
               value={String(round)}
               tone="violet"
             />
             <StatChip
               icon={<Trophy className="h-4 w-4" />}
-              label="Счёт"
+              label="Score"
               value={String(score)}
               tone="rose"
             />
@@ -996,11 +996,11 @@ export default function PapayaGame() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.6 }}
                   className="flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-cyan-500/30 to-blue-700/20 px-3 py-1.5 ring-1 ring-cyan-400/50"
-                  title="Ежедневный челлендж — одинаковая последовательность для всех!"
+                  title="Daily challenge — same sequence for everyone!"
                 >
                   <CalendarDays className="h-4 w-4 text-cyan-300" />
                   <span className="text-[10px] font-black uppercase tracking-wider text-cyan-200">
-                    Челлендж
+                    Challenge
                   </span>
                 </motion.div>
               )}
@@ -1017,7 +1017,7 @@ export default function PapayaGame() {
                   <Flame className="h-4 w-4 animate-pulse text-orange-300" />
                   <div className="flex flex-col leading-none">
                     <span className="text-[9px] uppercase tracking-wider text-orange-200/70">
-                      Комбо
+                      Combo
                     </span>
                     <span className="font-mono text-sm font-black text-orange-200">
                       ×{comboMultiplier.toFixed(1)} · {combo}
@@ -1029,8 +1029,8 @@ export default function PapayaGame() {
             <button
               type="button"
               onClick={toggleSound}
-              aria-label={soundOn ? 'Выключить звук' : 'Включить звук'}
-              title={soundOn ? 'Выключить звук' : 'Включить звук'}
+              aria-label={soundOn ? 'Mute' : 'Unmute'}
+              title={soundOn ? 'Mute' : 'Unmute'}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-900/50 bg-black/40 text-red-200 transition-colors hover:bg-red-900/40 hover:text-white"
             >
               {soundOn ? (
@@ -1048,8 +1048,8 @@ export default function PapayaGame() {
                 step={0.05}
                 value={volume}
                 onChange={(e) => changeVolume(parseFloat(e.target.value))}
-                aria-label="Громкость"
-                title={`Громкость: ${Math.round(volume * 100)}%`}
+                aria-label="Volume"
+                title={`Volume: ${Math.round(volume * 100)}%`}
                 className="vol-slider h-1.5 w-16 cursor-pointer appearance-none rounded-full bg-red-900/50 sm:w-20"
               />
             )}
@@ -1058,8 +1058,8 @@ export default function PapayaGame() {
               <button
                 type="button"
                 onClick={togglePause}
-                aria-label="Пауза"
-                title="Пауза (P)"
+                aria-label="Pause"
+                title="Pause (P)"
                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-900/50 bg-black/40 text-red-200 transition-colors hover:bg-red-900/40 hover:text-white"
               >
                 <Pause className="h-4 w-4" />
@@ -1116,7 +1116,7 @@ export default function PapayaGame() {
                   className="flex items-center gap-2 text-sm font-semibold text-amber-300"
                 >
                   <Music2 className="h-4 w-4 animate-pulse" />
-                  Музыка играет — Папайа танцует!
+                  Music is playing — Papaya is dancing!
                 </motion.div>
               )}
               {showFreezeOverlay && (
@@ -1128,7 +1128,7 @@ export default function PapayaGame() {
                   className="flex items-center gap-2 text-base font-black text-red-400"
                 >
                   <AlertTriangle className="h-5 w-5 animate-ping" />
-                  ЗАМРИ! Жми ПРОБЕЛ!
+                  FREEZE! Hit SPACE!
                 </motion.div>
               )}
               {state === 'frozen' && (
@@ -1140,7 +1140,7 @@ export default function PapayaGame() {
                   className="flex items-center gap-2 text-base font-black text-emerald-300"
                 >
                   <Zap className="h-5 w-5" />
-                  Отлично! Папайа замер!
+                  Nice! Papaya froze!
                 </motion.div>
               )}
               {state === 'gameover' && (
@@ -1152,8 +1152,8 @@ export default function PapayaGame() {
                 >
                   <Skull className="h-5 w-5" />
                   {failReason === 'early'
-                    ? 'Слишком рано! Музыка ещё играла.'
-                    : 'Слишком поздно! Папайа не успел замереть.'}
+                    ? 'Too early! The music was still playing.'
+                    : 'Too late! Papaya didn\'t freeze in time.'}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1258,30 +1258,30 @@ export default function PapayaGame() {
                   {/* feature highlight chips */}
                   <div className="flex flex-wrap items-center justify-center gap-1.5">
                     <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-200/80 ring-1 ring-amber-400/20">
-                      <Flame className="h-2.5 w-2.5" /> Комбо
+                      <Flame className="h-2.5 w-2.5" /> Combo
                     </span>
                     <span className="flex items-center gap-1 rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-200/80 ring-1 ring-cyan-400/20">
-                      <CalendarDays className="h-2.5 w-2.5" /> Челлендж
+                      <CalendarDays className="h-2.5 w-2.5" /> Challenge
                     </span>
                     <span className="flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-200/80 ring-1 ring-violet-400/20">
-                      <Medal className="h-2.5 w-2.5" /> {ACHIEVEMENTS.length} ачивок
+                      <Medal className="h-2.5 w-2.5" /> {ACHIEVEMENTS.length} achievements
                     </span>
                     <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200/80 ring-1 ring-emerald-400/20">
-                      <Trophy className="h-2.5 w-2.5" /> Лидерборд
+                      <Trophy className="h-2.5 w-2.5" /> Leaderboard
                     </span>
                   </div>
                   <p className="text-center text-xs text-red-200/80">
-                    Когда музыка резко стихнет — жми{' '}
+                    When the music suddenly stops — press{' '}
                     <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
-                      ПРОБЕЛ
+                      SPACE
                     </kbd>{' '}
-                    или кнопку ЗАМРИ. Не жми слишком рано! 🔥 Серия из 3+ замри
-                    даёт множитель очков.
+                    or the FREEZE button. Don't press too early! 🔥 A streak of 3+ freezes
+                    gives a score multiplier.
                   </p>
                   {/* difficulty selector */}
                   <div className="flex w-full flex-col gap-1.5">
                     <span className="text-center text-[10px] uppercase tracking-wider text-red-300/60">
-                      Сложность
+                      Difficulty
                     </span>
                     <div className="grid grid-cols-3 gap-1.5">
                       {(Object.keys(DIFFICULTY_PRESETS) as Difficulty[]).map(
@@ -1332,15 +1332,15 @@ export default function PapayaGame() {
                     }`}
                   >
                     <CalendarDays className="h-4 w-4" />
-                    Ежедневный челлендж
+                    Daily Challenge
                     {dailyMode && (
-                      <Badge className="bg-cyan-500/30 text-cyan-100">вкл</Badge>
+                      <Badge className="bg-cyan-500/30 text-cyan-100">on</Badge>
                     )}
                   </button>
                   {/* skin selector */}
                   <div className="flex w-full flex-col gap-1.5">
                     <span className="text-center text-[10px] uppercase tracking-wider text-red-300/60">
-                      Персонаж
+                      Character
                     </span>
                     <div className="flex w-full justify-center gap-1.5">
                       {SKINS.map((s) => {
@@ -1371,7 +1371,7 @@ export default function PapayaGame() {
                     <Input
                       value={playerName}
                       onChange={(e) => setPlayerName(e.target.value)}
-                      placeholder="Имя танцора"
+                      placeholder="Dancer name"
                       maxLength={24}
                       className="border-red-900/50 bg-black/40 text-red-100 placeholder:text-red-300/40"
                       onKeyDown={(e) => {
@@ -1382,7 +1382,7 @@ export default function PapayaGame() {
                       onClick={() => startGame(dailyMode)}
                       className={dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-red-700 hover:bg-red-600'}
                     >
-                      <Play className="mr-1 h-4 w-4" /> Старт
+                      <Play className="mr-1 h-4 w-4" /> Start
                     </Button>
                   </div>
                   {/* re-open tutorial link */}
@@ -1391,7 +1391,7 @@ export default function PapayaGame() {
                     onClick={() => setShowTutorial(true)}
                     className="text-[11px] text-red-300/50 underline-offset-2 transition-colors hover:text-red-200 hover:underline"
                   >
-                    Как играть?
+                    How to play?
                   </button>
                 </motion.div>
               )}
@@ -1406,9 +1406,9 @@ export default function PapayaGame() {
                 >
                   <div className="flex items-center gap-2 text-center text-xs text-red-200/70">
                     <kbd className="rounded bg-white/10 px-2 py-1 font-mono text-red-100">
-                      ПРОБЕЛ
+                      SPACE
                     </kbd>
-                    = замереть, когда музыка стихнет
+                    = freeze when the music stops
                   </div>
                   {/* big tap-to-freeze button — primary control on touch devices */}
                   <button
@@ -1424,10 +1424,10 @@ export default function PapayaGame() {
                           ? 'border-red-800/50 bg-black/40 text-red-200 hover:border-red-500/60 hover:bg-red-900/30'
                           : 'border-slate-600/50 bg-black/40 text-slate-300'
                     }`}
-                    aria-label="Замереть"
+                    aria-label="Freeze"
                   >
                     <Hand className="h-5 w-5" />
-                    ЗАМРИ
+                    FREEZE
                   </button>
                 </motion.div>
               )}
@@ -1450,7 +1450,7 @@ export default function PapayaGame() {
                         className="flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500/30 to-orange-600/30 px-4 py-1.5 text-sm font-black text-amber-200 ring-2 ring-amber-400/60"
                       >
                         <Star className="h-4 w-4 animate-pulse fill-amber-300 text-amber-300" />
-                        НОВЫЙ ЛИЧНЫЙ РЕКОРД!
+                        NEW PERSONAL BEST!
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -1460,7 +1460,7 @@ export default function PapayaGame() {
                     <div className="flex flex-col items-center rounded-lg bg-amber-500/10 px-3 py-2 ring-1 ring-amber-400/30">
                       <Trophy className="mb-1 h-4 w-4 text-amber-400" />
                       <span className="text-[9px] uppercase tracking-wider text-amber-200/60">
-                        Счёт
+                        Score
                       </span>
                       <span className="font-mono text-lg font-black text-amber-200">
                         {score}
@@ -1469,7 +1469,7 @@ export default function PapayaGame() {
                     <div className="flex flex-col items-center rounded-lg bg-emerald-500/10 px-3 py-2 ring-1 ring-emerald-400/30">
                       <Hand className="mb-1 h-4 w-4 text-emerald-400" />
                       <span className="text-[9px] uppercase tracking-wider text-emerald-200/60">
-                        Замри
+                        Freezes
                       </span>
                       <span className="font-mono text-lg font-black text-emerald-200">
                         {freezes}
@@ -1478,16 +1478,16 @@ export default function PapayaGame() {
                     <div className="flex flex-col items-center rounded-lg bg-violet-500/10 px-3 py-2 ring-1 ring-violet-400/30">
                       <Timer className="mb-1 h-4 w-4 text-violet-400" />
                       <span className="text-[9px] uppercase tracking-wider text-violet-200/60">
-                        В танце
+                        Danced
                       </span>
                       <span className="font-mono text-lg font-black text-violet-200">
-                        {danceSeconds.toFixed(1)}с
+                        {danceSeconds.toFixed(1)}s
                       </span>
                     </div>
                     <div className="flex flex-col items-center rounded-lg bg-orange-500/10 px-3 py-2 ring-1 ring-orange-400/30">
                       <Flame className="mb-1 h-4 w-4 text-orange-400" />
                       <span className="text-[9px] uppercase tracking-wider text-orange-200/60">
-                        Макс. комбо
+                        Best combo
                       </span>
                       <span className="font-mono text-lg font-black text-orange-200">
                         {bestCombo}
@@ -1499,7 +1499,7 @@ export default function PapayaGame() {
                   {freezes > 0 && (
                     <div className="w-full rounded-lg bg-black/30 p-2.5">
                       <div className="mb-1 flex items-center justify-between text-[9px] uppercase tracking-wider text-red-300/50">
-                        <span>Лучшая реакция</span>
+                        <span>Best reaction</span>
                         <span className="font-mono text-amber-300">
                           {Math.round(bestFreezeTiming * 100)}%
                         </span>
@@ -1517,13 +1517,13 @@ export default function PapayaGame() {
                   {roundHistory.length > 0 && (
                     <div className="w-full rounded-lg bg-black/30 p-2.5">
                       <div className="mb-1.5 text-center text-[9px] uppercase tracking-wider text-red-300/50">
-                        История замри
+                        Freeze history
                       </div>
                       <div className="flex flex-wrap items-center justify-center gap-1">
                         {roundHistory.map((r, i) => (
                           <span
                             key={i}
-                            title={`Раунд ${r.round}: ${r.timing === 'perfect' ? 'ИДЕАЛ' : r.timing === 'good' ? 'Хорошо' : 'Норм'}`}
+                            title={`Round ${r.round}: ${r.timing === 'perfect' ? 'PERFECT' : r.timing === 'good' ? 'Good' : 'OK'}`}
                             className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold ring-1 ${
                               r.timing === 'perfect'
                                 ? 'bg-amber-500/30 text-amber-200 ring-amber-400/50'
@@ -1543,7 +1543,7 @@ export default function PapayaGame() {
                   <div className="flex flex-wrap items-center justify-center gap-2 text-center">
                     {lastSavedRank && lastSavedRank <= 20 && (
                       <Badge className="bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/40">
-                        <Crown className="mr-1 h-3 w-3" />#{lastSavedRank} в таблице
+                        <Crown className="mr-1 h-3 w-3" />#{lastSavedRank} on leaderboard
                       </Badge>
                     )}
                     {personalBest !== null && (
@@ -1555,7 +1555,7 @@ export default function PapayaGame() {
                         }`}
                       >
                         <TrendingUp className="mr-1 h-3 w-3" />
-                        {isNewBest ? 'Рекорд побит!' : `Лучший: ${personalBest}`}
+                        {isNewBest ? 'Record broken!' : `Best: ${personalBest}`}
                       </Badge>
                     )}
                   </div>
@@ -1564,21 +1564,21 @@ export default function PapayaGame() {
                       onClick={() => startGame(dailyMode)}
                       className={`flex-1 ${dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-red-700 hover:bg-red-600'}`}
                     >
-                      <RotateCcw className="mr-1 h-4 w-4" /> Ещё раз
+                      <RotateCcw className="mr-1 h-4 w-4" /> Play again
                     </Button>
                     <Button
                       onClick={shareScore}
                       variant="outline"
                       className="border-amber-700/50 bg-amber-900/20 text-amber-200 hover:bg-amber-900/40 hover:text-amber-100"
-                      title="Поделиться результатом"
+                      title="Share score"
                     >
                       {shared ? (
                         <>
-                          <Check className="mr-1 h-4 w-4" /> Скопировано!
+                          <Check className="mr-1 h-4 w-4" /> Copied!
                         </>
                       ) : (
                         <>
-                          <Share2 className="mr-1 h-4 w-4" /> Поделиться
+                          <Share2 className="mr-1 h-4 w-4" /> Share
                         </>
                       )}
                     </Button>
@@ -1586,11 +1586,11 @@ export default function PapayaGame() {
                   {/* Lifetime session stats */}
                   {sessionStats.games > 0 && (
                     <div className="flex w-full items-center justify-center gap-3 rounded-lg bg-black/30 px-3 py-2 text-[10px] text-red-300/50">
-                      <span>🎮 {sessionStats.games} игр</span>
+                      <span>🎮 {sessionStats.games} games</span>
                       <span>·</span>
-                      <span>🥭 {sessionStats.totalFreezes} замри</span>
+                      <span>🥭 {sessionStats.totalFreezes} freezes</span>
                       <span>·</span>
-                      <span>⏱ {sessionStats.totalDanceSeconds}с</span>
+                      <span>⏱ {sessionStats.totalDanceSeconds}s</span>
                     </div>
                   )}
                 </motion.div>
@@ -1606,7 +1606,7 @@ export default function PapayaGame() {
               <div className="flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-amber-400" />
                 <h2 className="text-sm font-bold tracking-wide text-amber-200">
-                  ЛИДЕРБОРД
+                  LEADERBOARD
                 </h2>
               </div>
               <div className="flex items-center gap-1">
@@ -1615,7 +1615,7 @@ export default function PapayaGame() {
                   size="sm"
                   onClick={() => setShowAchPanel(true)}
                   className="h-7 gap-1 px-2 text-xs text-red-300/70 hover:text-red-200"
-                  title="Достижения"
+                  title="Achievements"
                 >
                   <Medal className="h-3 w-3" />
                   <span className="hidden sm:inline">
@@ -1644,7 +1644,7 @@ export default function PapayaGame() {
                         : 'text-red-300/50 hover:bg-red-900/20 hover:text-red-200'
                     }`}
                   >
-                    {f === 'all' ? 'Все' : 'Сегодня'}
+                    {f === 'all' ? 'All' : 'Today'}
                   </button>
                 ))}
               </div>
@@ -1653,9 +1653,9 @@ export default function PapayaGame() {
               <div className="px-2 py-2">
                 {leaderboard.length === 0 ? (
                   <div className="px-3 py-10 text-center text-xs text-red-300/50">
-                    Пока нет рекордов.
+                    No records yet.
                     <br />
-                    Стань первым!
+                    Be the first!
                   </div>
                 ) : (
                   <ul className="flex flex-col gap-1">
@@ -1696,7 +1696,7 @@ export default function PapayaGame() {
                               )}
                             </span>
                             <span className="text-[10px] text-red-300/60">
-                              {s.freezes} замри · {s.danceSeconds}с
+                              {s.freezes} freezes · {s.danceSeconds}s
                             </span>
                           </div>
                           <span className="shrink-0 font-mono text-sm font-bold text-amber-300">
@@ -1711,7 +1711,7 @@ export default function PapayaGame() {
             </ScrollArea>
             <Separator className="bg-red-900/30" />
             <div className="px-4 py-2 text-center text-[10px] text-red-300/50">
-              Очки = замри × 100 × множитель + секунды
+              Score = freezes × 100 × multiplier + seconds
             </div>
           </Card>
           {/* Lifetime session stats card */}
@@ -1720,7 +1720,7 @@ export default function PapayaGame() {
               <div className="mb-2 flex items-center gap-1.5">
                 <TrendingUp className="h-3.5 w-3.5 text-amber-400" />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200/70">
-                  За всё время
+                  All time
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
@@ -1728,19 +1728,19 @@ export default function PapayaGame() {
                   <span className="font-mono text-base font-black text-amber-200">
                     {sessionStats.games}
                   </span>
-                  <span className="text-[9px] text-red-300/50">игр</span>
+                  <span className="text-[9px] text-red-300/50">games</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="font-mono text-base font-black text-emerald-200">
                     {sessionStats.totalFreezes}
                   </span>
-                  <span className="text-[9px] text-red-300/50">замри</span>
+                  <span className="text-[9px] text-red-300/50">freezes</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="font-mono text-base font-black text-violet-200">
-                    {sessionStats.totalDanceSeconds}с
+                    {sessionStats.totalDanceSeconds}s
                   </span>
-                  <span className="text-[9px] text-red-300/50">в танце</span>
+                  <span className="text-[9px] text-red-300/50">danced</span>
                 </div>
               </div>
             </Card>
@@ -1753,15 +1753,15 @@ export default function PapayaGame() {
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 text-xs text-red-300/60">
           <div className="flex flex-col items-center justify-between gap-2 sm:flex-row sm:text-left">
             <span>
-              🥭 Папайа танцует под жуткую мелодию. Успей замереть, когда музыка
-              стихнет!
+              🥭 Papaya dances to a creepy tune. Freeze when the music
+              stops!
             </span>
             <span className="flex items-center gap-3">
               <span className="flex items-center gap-1.5">
-                <Music2 className="h-3 w-3" /> Музыка в реальном времени
+                <Music2 className="h-3 w-3" /> Real-time music
               </span>
               <span className="hidden items-center gap-1.5 sm:flex">
-                · Сложность: {DIFFICULTY_PRESETS[difficulty].label}
+                · Difficulty: {DIFFICULTY_PRESETS[difficulty].label}
               </span>
             </span>
           </div>
@@ -1769,9 +1769,9 @@ export default function PapayaGame() {
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-red-900/20 pt-2 text-center text-[10px] text-red-300/40">
             <span className="flex items-center gap-1">
               <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
-                ПРОБЕЛ
+                SPACE
               </kbd>
-              замри
+              freeze
             </span>
             <span className="flex items-center gap-1">
               <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
@@ -1781,31 +1781,31 @@ export default function PapayaGame() {
               <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
                 Esc
               </kbd>
-              пауза
+              pause
             </span>
             <span className="flex items-center gap-1">
               <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
                 Enter
               </kbd>
-              старт
+              start
             </span>
             <span className="flex items-center gap-1">
               <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
                 1/2/3
               </kbd>
-              сложность
+              difficulty
             </span>
             <span className="flex items-center gap-1">
               <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
                 D
               </kbd>
-              челлендж
+              challenge
             </span>
             <span className="flex items-center gap-1">
               <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
                 M
               </kbd>
-              звук
+              sound
             </span>
           </div>
         </div>
@@ -1913,7 +1913,7 @@ function ConfettiBurst() {
         transition={{ type: 'spring', stiffness: 280, damping: 14 }}
       >
         <PartyPopper className="mr-2 inline h-5 w-5" />
-        ОТЛИЧНО!
+        AWESOME!
       </motion.div>
       {pieces.map((_, i) => {
         const left = Math.random() * 100
@@ -1957,7 +1957,7 @@ function Equalizer({ active, muted }: { active: boolean; muted: boolean }) {
       className={`flex h-8 items-end gap-0.5 rounded-md bg-black/40 px-1.5 py-1 ring-1 ring-red-900/40 ${
         muted ? 'opacity-50' : ''
       }`}
-      title={muted ? 'Звук выключен' : 'Музыка играет'}
+      title={muted ? 'Sound off' : 'Music playing'}
       aria-hidden="true"
     >
       {bars.map((b) => (
@@ -2032,7 +2032,7 @@ function AchievementToast({ achId }: { achId: string | null }) {
             </motion.span>
             <div className="flex flex-col leading-tight">
               <span className="text-[9px] uppercase tracking-wider text-amber-300/70">
-                Достижение!
+                Achievement!
               </span>
               <span className="text-sm font-black text-amber-100">
                 {ach.title}
@@ -2074,7 +2074,7 @@ function AchievementsPanel({
           <div className="flex items-center gap-2">
             <Medal className="h-5 w-5 text-amber-400" />
             <h2 className="text-base font-black text-amber-200">
-              ДОСТИЖЕНИЯ
+              ACHIEVEMENTS
             </h2>
             <Badge className="bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40">
               {unlocked.size}/{ACHIEVEMENTS.length}
@@ -2082,7 +2082,7 @@ function AchievementsPanel({
           </div>
           <button
             onClick={onClose}
-            aria-label="Закрыть"
+            aria-label="Close"
             className="flex h-7 w-7 items-center justify-center rounded-lg text-red-300/70 transition-colors hover:bg-red-900/40 hover:text-white"
           >
             <X className="h-4 w-4" />
@@ -2133,7 +2133,7 @@ function AchievementsPanel({
           </div>
         </ScrollArea>
         <div className="border-t border-amber-900/40 px-5 py-2 text-center text-[10px] text-amber-300/50">
-          Достижения открываются автоматически по ходу игры
+          Achievements unlock automatically as you play
         </div>
       </motion.div>
     </motion.div>
@@ -2145,28 +2145,28 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
   const steps = [
     {
       icon: '🎵',
-      title: 'Папайа танцует',
-      desc: 'Под жуткую музыку Чакки Папайа делает фосс-танец. Следи за таймером вверху!',
+      title: 'Papaya dances',
+      desc: 'Papaya does the floss dance to creepy Chucky music. Watch the timer at the top!',
     },
     {
       icon: '🛑',
-      title: 'Музыка стихнет',
-      desc: 'Внезапно музыка остановится — появится красный сигнал «ЗАМРИ!». Это твой момент!',
+      title: 'Music stops',
+      desc: 'The music will suddenly stop — a red "FREEZE!" signal appears. That\'s your moment!',
     },
     {
       icon: '⌨️',
-      title: 'Жми ПРОБЕЛ',
-      desc: 'Нажми ПРОБЕЛ или кнопку ЗАМРИ, пока папайа не успел замереть сам. Не жми слишком рано!',
+      title: 'Press SPACE',
+      desc: 'Press SPACE or the FREEZE button before Papaya freezes on its own. Don\'t press too early!',
     },
     {
       icon: '🔥',
-      title: 'Серии и множитель',
-      desc: 'Каждые 3 замри подряд дают множитель очков (до ×3). Открывай достижения и побей рекорд!',
+      title: 'Streaks & multiplier',
+      desc: 'Every 3 freezes in a row gives a score multiplier (up to ×3). Unlock achievements and beat your record!',
     },
     {
       icon: '⌨️',
-      title: 'Горячие клавиши',
-      desc: '1/2/3 — сложность, D — ежедневный челлендж, M — звук, P/Esc — пауза, Enter — старт.',
+      title: 'Hotkeys',
+      desc: '1/2/3 — difficulty, D — daily challenge, P/Esc — pause, Enter — start.',
     },
   ]
   return (
@@ -2194,10 +2194,10 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
             <Skull className="h-8 w-8 text-red-300" />
           </motion.div>
           <h2 className="text-xl font-black text-red-200">
-            КАК ИГРАТЬ
+            HOW TO PLAY
           </h2>
           <p className="text-xs text-red-300/60">
-            Замри, Папайа! — танцевальная игра на реакцию
+            Freeze, Papaya! — a reaction-based dance game
           </p>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -2225,7 +2225,7 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
           onClick={onClose}
           className="mt-5 w-full bg-red-700 hover:bg-red-600"
         >
-          <Play className="mr-1 h-4 w-4" /> Понятно, играть!
+          <Play className="mr-1 h-4 w-4" /> Got it, let's play!
         </Button>
       </motion.div>
     </motion.div>

@@ -23,11 +23,11 @@ export type CharState =
 export type Skin = 'papaya' | 'strawberry' | 'blueberry' | 'grape' | 'lime'
 
 export const SKINS: { id: Skin; label: string; emoji: string }[] = [
-  { id: 'papaya', label: 'Папайа', emoji: '🥭' },
-  { id: 'strawberry', label: 'Клубника', emoji: '🍓' },
-  { id: 'blueberry', label: 'Черника', emoji: '🫐' },
-  { id: 'grape', label: 'Виноград', emoji: '🍇' },
-  { id: 'lime', label: 'Лайм', emoji: '🟢' },
+  { id: 'papaya', label: 'Papaya', emoji: '🥭' },
+  { id: 'strawberry', label: 'Strawberry', emoji: '🍓' },
+  { id: 'blueberry', label: 'Blueberry', emoji: '🫐' },
+  { id: 'grape', label: 'Grape', emoji: '🍇' },
+  { id: 'lime', label: 'Lime', emoji: '🟢' },
 ]
 
 export function PapayaCharacter({
@@ -64,7 +64,7 @@ export function PapayaCharacter({
       viewBox="0 0 300 380"
       className={cls}
       role="img"
-      aria-label="Папайа"
+      aria-label="Papaya"
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>

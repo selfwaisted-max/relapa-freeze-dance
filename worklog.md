@@ -153,3 +153,43 @@ Unresolved issues / risks:
 Artifacts modified this round:
 - `src/components/papaya-game.tsx` — combo system, personal best, equalizer, dust motes, stats grid, new-best callout, leaderboard personal-best highlight.
 - (no other files changed; CSS keyframes for floss unchanged from round 1).
+
+---
+Task ID: 4 (webDevReview cron round 3)
+Agent: webDevReview (Z.ai Code, cron job 214383)
+Task: QA the game, then add more features and styling per mandatory requirements.
+
+Work Log:
+- Read worklog.md; confirmed server alive (HTTP 200, PPID=1 daemons) and prior features intact (floss dance v6, combo system, difficulty selector, sound toggle, tap-to-freeze, confetti, equalizer, dust motes, personal best, stats grid).
+- QA via agent-browser: idle/dancing/gameover all working, no runtime errors.
+- Added NEW FEATURES this round:
+  1. **Achievements/Milestones system** (`src/lib/achievements.ts`) — 10 achievements (First Freeze, Combo ×3, Combo ×5, Combo ×10, Dancer 30s, Marathoner 60s, Round 5, Round 10, Score 500, Score 1000). Persisted in localStorage. `checkAchievements()` called after each freeze success and on game over; newly unlocked ids are queued and shown one-at-a-time as animated toast notifications (emoji + title + desc, 3.2s each). A Medal button in the leaderboard header shows the count (e.g. "3/10") and opens a full achievements panel modal listing all 10 with locked (🔒) / unlocked states.
+  2. **Pause functionality** — press P or Escape (or click the Pause button in the header) to pause mid-game. Stops music + all timers (dance timer, music-stop timer, freeze window, frozen-resume timer, freeze animation). Shows a centered "ПАУЗА" overlay with instructions and a "Продолжить" button. Resume restarts music + timers; if paused during freeze/frozen state, resumes fresh dancing (simpler + fairer than partial timing).
+  3. **First-play onboarding tutorial** — a modal overlay shown on first visit (localStorage flag `papaya-tutorial-seen`). Explains the game in 4 illustrated steps (🎵 Папайа танцует, 🛑 Музыка стихнет, ⌨️ Жми ПРОБЕЛ, 🔥 Серии и множитель) with a "Понятно, играть!" button. A "Как играть?" link in the idle panel re-opens it anytime.
+- STYLING polish (mandatory "more styling details"):
+  - Stage visual depth: decorative curtain folds (repeating-linear-gradient, opacity 50%), side spotlight beams (amber/10 blur-2xl, rotated), floor reflection glow (rounded-t-full gradient), all more visible than the initial subtle pass.
+  - Achievements toast: gradient amber/orange background, animated emoji (rotate + scale), shadow glow.
+  - Achievements panel: max-w-lg modal with scrollable list, color-coded locked/unlocked rows, star icons for unlocked, count badge.
+  - Tutorial overlay: 2×2 grid of step cards with staggered entrance animations, animated skull icon.
+  - Pause overlay: centered modal with pause icon, kbd-styled key hints.
+- ESLint: 0 errors, 0 warnings (added eslint-disable for legitimate localStorage mount-load + achievement-queue state-machine effects; restructured togglePause ref to satisfy react-hooks/immutability).
+- QA verified via agent-browser:
+  - Tutorial overlay: shows on first visit ✓, dismissible ✓, "Как играть?" re-opens it ✓
+  - Pause: P key pauses (overlay shown, timer frozen at 0.6 for 2s+) ✓, P resumes ✓
+  - Achievements panel: opens via Medal button ✓, shows 10 achievements (all locked initially) ✓, close button works ✓
+  - Game-over: stats grid + personal best badge ("Лучший: 473") ✓
+  - VLM review (glm-4.6v): tutorial 9/10, pause 9/10, achievements panel 8/10 (fixed text overflow by widening modal to max-w-lg). Stage polish elements confirmed present in DOM.
+
+Stage Summary:
+- 3 major new features: achievements system (10 milestones + toasts + panel), pause functionality, onboarding tutorial.
+- All features QA-verified via agent-browser; no runtime errors.
+- ESLint clean; server stable (HTTP 200, PPID=1 daemons).
+
+Unresolved issues / risks:
+- VLM couldn't detect subtle stage atmospheric elements (dust motes, curtain folds, spotlights) in static screenshots — confirmed present via DOM inspection; they're intentionally subtle but boosted to opacity 50%/10% this round.
+- Web Audio still requires a real user gesture (expected browser behavior).
+- Next steps could add: volume slider, daily challenge mode, share-score button, or more achievements (e.g. "Perfect Game" = 0 early/late fails in a run).
+
+Artifacts modified this round:
+- `src/lib/achievements.ts` (NEW) — 10 achievement definitions + localStorage helpers + check function.
+- `src/components/papaya-game.tsx` — achievements state/toast/panel, pause logic + overlay, tutorial overlay, stage visual polish, "Как играть?" link, achievements button in sidebar.

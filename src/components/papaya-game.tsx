@@ -11,6 +11,14 @@ import { Separator } from '@/components/ui/separator'
 import { ChuckyEngine } from '@/lib/music'
 import { PapayaCharacter } from '@/components/papaya-character'
 import {
+  ACHIEVEMENTS,
+  loadUnlocked,
+  saveUnlocked,
+  checkNewlyUnlocked,
+  getAchievement,
+  type AchievementStats,
+} from '@/lib/achievements'
+import {
   Music2,
   Hand,
   Trophy,
@@ -28,9 +36,12 @@ import {
   Flame,
   Star,
   TrendingUp,
+  Pause,
+  Medal,
+  X,
 } from 'lucide-react'
 
-type GameState = 'idle' | 'dancing' | 'freeze' | 'frozen' | 'gameover'
+type GameState = 'idle' | 'dancing' | 'freeze' | 'frozen' | 'gameover' | 'paused'
 
 type ScoreEntry = {
   id: string
@@ -86,6 +97,12 @@ export default function PapayaGame() {
   const [bestCombo, setBestCombo] = useState(0) // best combo this run
   const [personalBest, setPersonalBest] = useState<number | null>(null)
   const [isNewBest, setIsNewBest] = useState(false)
+  const [unlockedAch, setUnlockedAch] = useState<Set<string>>(new Set())
+  const [achToast, setAchToast] = useState<string | null>(null) // currently shown achievement toast
+  const [achQueue, setAchQueue] = useState<string[]>([]) // queue of achievement ids to show
+  const [showAchPanel, setShowAchPanel] = useState(false) // achievements modal
+  const [pausedFrom, setPausedFrom] = useState<GameState | null>(null) // state before pause
+  const [showTutorial, setShowTutorial] = useState(false)
 
   const engineRef = useRef<ChuckyEngine | null>(null)
   const musicStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -118,7 +135,7 @@ export default function PapayaGame() {
     comboRef.current = combo
   }, [combo])
 
-  // Load personal best from localStorage on mount
+  // Load personal best + achievements + tutorial-seen from localStorage on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem('papaya-best-score')
@@ -126,6 +143,11 @@ export default function PapayaGame() {
         const n = parseInt(stored, 10)
         // eslint-disable-next-line react-hooks/set-state-in-effect
         if (!Number.isNaN(n)) setPersonalBest(n)
+      }
+      setUnlockedAch(loadUnlocked())
+      const seen = localStorage.getItem('papaya-tutorial-seen')
+      if (!seen) {
+        setShowTutorial(true)
       }
     } catch {
       /* ignore */
@@ -137,6 +159,31 @@ export default function PapayaGame() {
   const score = Math.floor(
     freezes * 100 * comboMultiplier + Math.floor(danceSeconds)
   )
+
+  // ----- Achievements: check after every stat change, queue newly unlocked -----
+  const checkAchievements = useCallback(
+    (stats: AchievementStats) => {
+      const newly = checkNewlyUnlocked(stats, unlockedAch)
+      if (newly.length === 0) return
+      const next = new Set(unlockedAch)
+      for (const id of newly) next.add(id)
+      setUnlockedAch(next)
+      saveUnlocked(next)
+      setAchQueue((q) => [...q, ...newly])
+    },
+    [unlockedAch]
+  )
+
+  // Process the achievement toast queue: show one at a time for 3s
+  useEffect(() => {
+    if (achToast || achQueue.length === 0) return
+    const [first, ...rest] = achQueue
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAchQueue(rest)
+    setAchToast(first)
+    const t = setTimeout(() => setAchToast(null), 3200)
+    return () => clearTimeout(t)
+  }, [achToast, achQueue])
 
   // ----- Leaderboard -----
   const fetchLeaderboard = useCallback(async () => {
@@ -258,6 +305,15 @@ export default function PapayaGame() {
       } catch {
         /* ignore */
       }
+      // Final achievement check with end-of-run stats
+      checkAchievements({
+        freezes,
+        combo,
+        bestCombo,
+        danceSeconds: Math.floor(danceSeconds),
+        round,
+        score: finalScore,
+      })
     }
   }
 
@@ -316,6 +372,7 @@ export default function PapayaGame() {
     const newRound = round + 1
     const newCombo = combo + 1
     const newMult = Math.min(3, 1 + Math.floor(newCombo / 3) * 0.5)
+    const newBestCombo = Math.max(bestCombo, newCombo)
     setFreezes(newFreezes)
     setRound(newRound)
     setCombo(newCombo)
@@ -323,6 +380,16 @@ export default function PapayaGame() {
     if (soundOnRef.current) engineRef.current?.sting('success')
     const multLabel = newMult > 1 ? ` ×${newMult.toFixed(1)}` : ''
     showFlash(`Замри! +${newRound - 1}${multLabel} 🔥${newCombo}`)
+
+    // Check achievements with the updated stats
+    checkAchievements({
+      freezes: newFreezes,
+      combo: newCombo,
+      bestCombo: newBestCombo,
+      danceSeconds: Math.floor(danceSeconds),
+      round: newRound,
+      score: Math.floor(newFreezes * 100 * newMult + Math.floor(danceSeconds)),
+    })
 
     // Celebrate milestones: every 5 freezes triggers confetti
     if (newFreezes > 0 && newFreezes % 5 === 0) {
@@ -353,9 +420,73 @@ export default function PapayaGame() {
     handleFreezeActionRef.current = handleFreezeAction
   })
 
+  // ----- pause / resume (defined before the key handler so its ref exists) -----
+  const togglePause = () => {
+    const s = stateRef.current
+    if (s === 'dancing' || s === 'freeze' || s === 'frozen') {
+      // pause: stop music + freeze timers
+      setPausedFrom(s)
+      setState('paused')
+      stopDanceTimer()
+      if (musicStopTimer.current) {
+        clearTimeout(musicStopTimer.current)
+        musicStopTimer.current = null
+      }
+      if (freezeWindowTimer.current) {
+        clearTimeout(freezeWindowTimer.current)
+        freezeWindowTimer.current = null
+      }
+      if (frozenResumeTimer.current) {
+        clearTimeout(frozenResumeTimer.current)
+        frozenResumeTimer.current = null
+      }
+      if (freezeAnimRef.current) {
+        cancelAnimationFrame(freezeAnimRef.current)
+        freezeAnimRef.current = null
+      }
+      engineRef.current?.stop()
+    } else if (s === 'paused' && pausedFrom) {
+      // resume: restart music + timers depending on where we paused
+      const from = pausedFrom
+      setState(from)
+      setPausedFrom(null)
+      if (from === 'dancing') {
+        if (soundOnRef.current) engineRef.current?.start()
+        startDanceTimer()
+        scheduleMusicStop()
+      }
+      // If paused during 'freeze' or 'frozen', the freeze window is lost —
+      // simply resume dancing fresh (simpler + fairer than partial timing).
+      if (from === 'freeze' || from === 'frozen') {
+        setState('dancing')
+        if (soundOnRef.current) engineRef.current?.start()
+        startDanceTimer()
+        scheduleMusicStop()
+      }
+    }
+  }
+  const togglePauseRef = useRef(togglePause)
+  useEffect(() => {
+    togglePauseRef.current = togglePause
+  })
+
   // ----- key handler (mounted once) -----
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Pause / resume with P or Escape (only meaningful mid-game)
+      if (e.code === 'KeyP' || e.code === 'Escape') {
+        const s = stateRef.current
+        if (s === 'dancing' || s === 'freeze' || s === 'frozen') {
+          e.preventDefault()
+          togglePauseRef.current()
+          return
+        }
+        if (s === 'paused') {
+          e.preventDefault()
+          togglePauseRef.current()
+          return
+        }
+      }
       if (e.code !== 'Space') return
       e.preventDefault()
       handleFreezeActionRef.current()
@@ -379,10 +510,21 @@ export default function PapayaGame() {
     setCombo(0)
     setBestCombo(0)
     setIsNewBest(false)
+    setPausedFrom(null)
     setState('dancing')
     if (soundOnRef.current) await engineRef.current.start()
     startDanceTimer()
     scheduleMusicStop()
+  }
+
+  // ----- dismiss tutorial (persist seen flag) -----
+  const dismissTutorial = () => {
+    setShowTutorial(false)
+    try {
+      localStorage.setItem('papaya-tutorial-seen', '1')
+    } catch {
+      /* ignore */
+    }
   }
 
   // ----- toggle sound (live) -----
@@ -403,6 +545,7 @@ export default function PapayaGame() {
   const isPlaying = state === 'dancing' || state === 'freeze' || state === 'frozen'
   const dancing = state === 'dancing'
   const showFreezeOverlay = state === 'freeze'
+  const isPaused = state === 'paused'
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1a0608] text-foreground">
@@ -418,6 +561,66 @@ export default function PapayaGame() {
       {/* confetti celebration overlay */}
       <AnimatePresence>
         {confetti && <ConfettiBurst />}
+      </AnimatePresence>
+
+      {/* achievement toast (top-center) */}
+      <AchievementToast achId={achToast} />
+
+      {/* achievements panel modal */}
+      <AnimatePresence>
+        {showAchPanel && (
+          <AchievementsPanel
+            unlocked={unlockedAch}
+            onClose={() => setShowAchPanel(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* first-play tutorial overlay */}
+      <AnimatePresence>
+        {showTutorial && <TutorialOverlay onClose={dismissTutorial} />}
+      </AnimatePresence>
+
+      {/* pause overlay */}
+      <AnimatePresence>
+        {isPaused && (
+          <motion.div
+            key="pause-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.85, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.85, y: 10 }}
+              className="flex flex-col items-center gap-4 rounded-2xl border border-red-900/50 bg-[#1a0608] px-10 py-8 text-center shadow-2xl"
+            >
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-900/50 ring-2 ring-red-500/40">
+                <Pause className="h-7 w-7 text-red-300" />
+              </div>
+              <h2 className="text-xl font-black text-red-200">ПАУЗА</h2>
+              <p className="max-w-xs text-xs text-red-300/70">
+                Музыка и таймер остановлены. Нажми «Продолжить», клавишу{' '}
+                <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+                  P
+                </kbd>{' '}
+                или{' '}
+                <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+                  Esc
+                </kbd>
+                , чтобы вернуться к танцам.
+              </p>
+              <Button
+                onClick={togglePause}
+                className="bg-red-700 hover:bg-red-600"
+              >
+                <Play className="mr-1 h-4 w-4" /> Продолжить
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* ===== HEADER ===== */}
@@ -498,6 +701,18 @@ export default function PapayaGame() {
                 <VolumeX className="h-4 w-4 text-red-400/60" />
               )}
             </button>
+            {/* Pause button — shown only while playing */}
+            {isPlaying && (
+              <button
+                type="button"
+                onClick={togglePause}
+                aria-label="Пауза"
+                title="Пауза (P)"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-900/50 bg-black/40 text-red-200 transition-colors hover:bg-red-900/40 hover:text-white"
+              >
+                <Pause className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -507,8 +722,17 @@ export default function PapayaGame() {
         {/* STAGE */}
         <section className="relative flex min-h-[60vh] flex-col items-center justify-center overflow-hidden rounded-2xl border border-red-900/40 bg-gradient-to-b from-[#2a0a0e]/80 to-[#150406]/90 p-4 shadow-[0_0_60px_-15px_rgba(220,38,38,0.5)]">
           {/* stage curtains top */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-red-950/80 to-transparent" />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/70 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-red-950/80 to-transparent" />
+          {/* decorative curtain folds */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-12 opacity-50" style={{
+            backgroundImage: 'repeating-linear-gradient(90deg, transparent 0, transparent 16px, rgba(127,29,29,0.7) 16px, rgba(127,29,29,0.7) 20px)',
+          }} />
+          {/* side spotlights (left + right beams) */}
+          <div className="pointer-events-none absolute -left-10 top-0 h-full w-40 rotate-12 bg-gradient-to-r from-amber-500/10 to-transparent blur-2xl" />
+          <div className="pointer-events-none absolute -right-10 top-0 h-full w-40 -rotate-12 bg-gradient-to-l from-amber-500/10 to-transparent blur-2xl" />
+          {/* stage floor reflection */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-8 bottom-0 h-24 rounded-t-full bg-gradient-to-t from-amber-500/10 to-transparent blur-xl" />
 
           {/* floating dust motes for atmosphere */}
           <DustMotes />
@@ -734,6 +958,14 @@ export default function PapayaGame() {
                       <Play className="mr-1 h-4 w-4" /> Старт
                     </Button>
                   </div>
+                  {/* re-open tutorial link */}
+                  <button
+                    type="button"
+                    onClick={() => setShowTutorial(true)}
+                    className="text-[11px] text-red-300/50 underline-offset-2 transition-colors hover:text-red-200 hover:underline"
+                  >
+                    Как играть?
+                  </button>
                 </motion.div>
               )}
 
@@ -869,8 +1101,8 @@ export default function PapayaGame() {
         </section>
 
         {/* ===== LEADERBOARD ===== */}
-        <aside className="relative">
-          <Card className="flex h-full max-h-[80vh] flex-col border-red-900/40 bg-black/50 backdrop-blur-sm">
+        <aside className="relative flex flex-col gap-3">
+          <Card className="flex flex-1 flex-col border-red-900/40 bg-black/50 backdrop-blur-sm">
             <div className="flex items-center justify-between border-b border-red-900/40 px-4 py-3">
               <div className="flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-amber-400" />
@@ -878,14 +1110,28 @@ export default function PapayaGame() {
                   ЛИДЕРБОРД
                 </h2>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={fetchLeaderboard}
-                className="h-7 px-2 text-xs text-red-300/70 hover:text-red-200"
-              >
-                <RotateCcw className="h-3 w-3" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAchPanel(true)}
+                  className="h-7 gap-1 px-2 text-xs text-red-300/70 hover:text-red-200"
+                  title="Достижения"
+                >
+                  <Medal className="h-3 w-3" />
+                  <span className="hidden sm:inline">
+                    {unlockedAch.size}/{ACHIEVEMENTS.length}
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchLeaderboard}
+                  className="h-7 px-2 text-xs text-red-300/70 hover:text-red-200"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
             <ScrollArea className="flex-1">
               <div className="px-2 py-2">
@@ -1171,5 +1417,224 @@ function DustMotes() {
         )
       })}
     </div>
+  )
+}
+
+/* Achievement toast — slides in from the top when an achievement unlocks. */
+function AchievementToast({ achId }: { achId: string | null }) {
+  const ach = achId ? getAchievement(achId) : null
+  return (
+    <AnimatePresence>
+      {ach && (
+        <motion.div
+          key={ach.id}
+          initial={{ opacity: 0, y: -40, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -40, scale: 0.9 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+          className="pointer-events-none fixed left-1/2 top-16 z-50 -translate-x-1/2"
+        >
+          <div className="flex items-center gap-3 rounded-xl border border-amber-400/50 bg-gradient-to-r from-amber-900/80 to-orange-900/80 px-4 py-2.5 shadow-[0_0_30px_-5px_rgba(251,191,36,0.6)] backdrop-blur-sm">
+            <motion.span
+              className="text-2xl"
+              animate={{ rotate: [0, -10, 10, 0], scale: [1, 1.2, 1] }}
+              transition={{ duration: 0.6, repeat: Infinity }}
+            >
+              {ach.icon}
+            </motion.span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-[9px] uppercase tracking-wider text-amber-300/70">
+                Достижение!
+              </span>
+              <span className="text-sm font-black text-amber-100">
+                {ach.title}
+              </span>
+              <span className="text-[10px] text-amber-200/60">{ach.desc}</span>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+/* Achievements panel — modal showing all achievements (locked/unlocked). */
+function AchievementsPanel({
+  unlocked,
+  onClose,
+}: {
+  unlocked: Set<string>
+  onClose: () => void
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        transition={{ type: 'spring', stiffness: 240, damping: 22 }}
+        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-amber-900/50 bg-[#1a0608] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-amber-900/40 px-5 py-3">
+          <div className="flex items-center gap-2">
+            <Medal className="h-5 w-5 text-amber-400" />
+            <h2 className="text-base font-black text-amber-200">
+              ДОСТИЖЕНИЯ
+            </h2>
+            <Badge className="bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40">
+              {unlocked.size}/{ACHIEVEMENTS.length}
+            </Badge>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Закрыть"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-red-300/70 transition-colors hover:bg-red-900/40 hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <ScrollArea className="flex-1">
+          <div className="grid grid-cols-1 gap-2 p-4">
+            {ACHIEVEMENTS.map((a) => {
+              const isUnlocked = unlocked.has(a.id)
+              return (
+                <motion.div
+                  key={a.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+                    isUnlocked
+                      ? 'border-amber-400/40 bg-amber-500/10'
+                      : 'border-red-900/30 bg-black/30 opacity-60'
+                  }`}
+                >
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${
+                      isUnlocked
+                        ? 'bg-amber-500/20 ring-1 ring-amber-400/40'
+                        : 'bg-black/40 grayscale'
+                    }`}
+                  >
+                    {isUnlocked ? a.icon : '🔒'}
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span
+                      className={`text-sm font-bold ${
+                        isUnlocked ? 'text-amber-100' : 'text-red-200/50'
+                      }`}
+                    >
+                      {a.title}
+                    </span>
+                    <span className="text-[11px] text-red-300/50">
+                      {a.desc}
+                    </span>
+                  </div>
+                  {isUnlocked && (
+                    <Star className="h-4 w-4 shrink-0 fill-amber-300 text-amber-300" />
+                  )}
+                </motion.div>
+              )
+            })}
+          </div>
+        </ScrollArea>
+        <div className="border-t border-amber-900/40 px-5 py-2 text-center text-[10px] text-amber-300/50">
+          Достижения открываются автоматически по ходу игры
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+/* First-play tutorial overlay — explains the game with 3 steps. */
+function TutorialOverlay({ onClose }: { onClose: () => void }) {
+  const steps = [
+    {
+      icon: '🎵',
+      title: 'Папайа танцует',
+      desc: 'Под жуткую музыку Чакки Папайа делает фосс-танец. Следи за таймером вверху!',
+    },
+    {
+      icon: '🛑',
+      title: 'Музыка стихнет',
+      desc: 'Внезапно музыка остановится — появится красный сигнал «ЗАМРИ!». Это твой момент!',
+    },
+    {
+      icon: '⌨️',
+      title: 'Жми ПРОБЕЛ',
+      desc: 'Нажми ПРОБЕЛ или кнопку ЗАМРИ, пока папайа не успел замереть сам. Не жми слишком рано!',
+    },
+    {
+      icon: '🔥',
+      title: 'Серии и множитель',
+      desc: 'Каждые 3 замри подряд дают множитель очков (до ×3). Открывай достижения и побей рекорд!',
+    },
+  ]
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        transition={{ type: 'spring', stiffness: 240, damping: 22 }}
+        className="w-full max-w-lg rounded-2xl border border-red-900/50 bg-[#1a0608] p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 text-center">
+          <motion.div
+            className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-red-900/50 ring-2 ring-red-500/40"
+            animate={{ rotate: [0, -8, 8, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            <Skull className="h-8 w-8 text-red-300" />
+          </motion.div>
+          <h2 className="text-xl font-black text-red-200">
+            КАК ИГРАТЬ
+          </h2>
+          <p className="text-xs text-red-300/60">
+            Замри, Папайа! — танцевальная игра на реакцию
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {steps.map((s, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 * i }}
+              className="flex items-start gap-3 rounded-lg border border-red-900/30 bg-black/30 p-3"
+            >
+              <span className="text-2xl">{s.icon}</span>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-red-100">
+                  {s.title}
+                </span>
+                <span className="text-[11px] leading-snug text-red-300/60">
+                  {s.desc}
+                </span>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+        <Button
+          onClick={onClose}
+          className="mt-5 w-full bg-red-700 hover:bg-red-600"
+        >
+          <Play className="mr-1 h-4 w-4" /> Понятно, играть!
+        </Button>
+      </motion.div>
+    </motion.div>
   )
 }

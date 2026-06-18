@@ -14,13 +14,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Freeze, Papaya! — Dance Game",
-  description: "Papaya dances to creepy Chucky music. Hit SPACE when the music stops!",
+  title: "Relapa — Freeze Dance Game",
+  description: "Relapa the ant conductor commands the stage. Freeze when he says stop!",
   keywords: ["game", "dance", "freeze", "papaya", "freeze dance", "reaction game"],
   authors: [{ name: "Z.ai" }],
   openGraph: {
-    title: "Freeze, Papaya!",
-    description: "A reaction-based dance game with Chucky-style music",
+    title: "Relapa",
+    description: "A freeze-dance game with a strict ant conductor",
     type: "website",
   },
 };

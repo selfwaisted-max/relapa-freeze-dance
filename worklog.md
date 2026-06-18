@@ -388,3 +388,42 @@ Unresolved issues / risks:
 
 Artifacts modified this round:
 - `src/components/papaya-game.tsx` — keyboard shortcuts (1/2/3/D), bestFreezeTiming state + display bar, tutorial 5th step, footer hints, playBlip moved before key handler.
+
+---
+Task ID: 10 (Relapa re-theme)
+Agent: main (Z.ai Code)
+Task: Re-theme the game from "Freeze, Papaya!" to "Relapa" — an ant conductor character in a theatrical steampunk setting, based on user-provided lore image.
+
+Work Log:
+- Analyzed the user's lore image via VLM (glm-4.6v): identified "Relapa" — an anthropomorphic ant conductor with top hat, bow tie, baton, in a dark theater with red curtains and golden spotlight. Color palette: burgundy/gold/black. Mood: dramatic, theatrical, authoritative. Key quote: "Dance for him. And freeze when he says so."
+- Generated 3 new AI images via z-ai image CLI:
+  - `/public/relapa-dance.png` — Relapa in a fun dance pose (1024x1024)
+  - `/public/relapa-frozen.png` — Relapa frozen/surprised mid-dance (1024x1024)
+  - `/public/relapa-stage.png` — dark theatrical stage background (1344x768)
+- Rewrote `src/components/papaya-character.tsx`: replaced the complex animated SVG papaya with `<motion.img>` using the new Relapa images. Dancing = bounce/rotate/squash animation via framer-motion; frozen = switches to frozen image + slight scale. Kept the same component interface (CharState prop) for drop-in compatibility.
+- Updated color palette throughout `src/components/papaya-game.tsx` via sed:
+  - Background: #1a0608 → #0d0608 (darker), #2a0a0e → #1a0a10, #150406 → #0d0306
+  - Text: red-200/300 → amber-200/300 (gold tones)
+  - Borders: red-900 → amber-900
+  - Buttons: bg-red-700 → bg-amber-800 (gold/burgundy)
+  - Backgrounds: bg-black/40 → bg-black/50 (darker)
+  - Scrollbar: red → amber
+  - Spotlight: warmer golden tones
+- Updated all texts:
+  - Title: "FREEZE, PAPAYA!" → "RELAPA"
+  - Subtitle: "Dance to Chucky's music" → "Dance for him. Freeze when he says stop."
+  - Status: "Music is playing — Papaya is dancing!" → "Relapa is conducting — dance!"
+  - Game-over: "Nice! Papaya froze!" → "Relapa froze! Perfect!"
+  - Footer: "🥭 Papaya dances..." → "🎭 Relapa the ant conductor rules the stage..."
+  - Share text: "🥭 Freeze, Papaya!" → "🎭 Relapa!"
+  - Layout metadata: title/description updated for Relapa
+- Updated `src/app/globals.css`: spotlight glow and scrollbar colors shifted to golden/amber.
+- ESLint: 0 errors, 0 warnings.
+- QA verified: page loads (HTTP 200), title "Relapa — Freeze Dance Game", character image renders (300x300px, relapa-dance.png), all controls present, no errors.
+
+Artifacts modified:
+- `src/components/papaya-character.tsx` — complete rewrite: SVG papaya → img-based Relapa with framer-motion animation.
+- `src/components/papaya-game.tsx` — color palette (red→amber/gold), texts (Papaya→Relapa), background image, character container.
+- `src/app/layout.tsx` — metadata title/description.
+- `src/app/globals.css` — spotlight/scrollbar colors.
+- `public/relapa-dance.png`, `public/relapa-frozen.png`, `public/relapa-stage.png` — new AI-generated images.

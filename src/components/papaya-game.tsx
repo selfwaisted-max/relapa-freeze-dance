@@ -430,10 +430,10 @@ export default function PapayaGame() {
 
   // ----- share score -----
   const shareScore = async () => {
-    const text = `🥭 Freeze, Papaya! Score: ${score} (Freezes: ${freezes}, Danced: ${danceSeconds.toFixed(1)}s, Best combo: ${bestCombo}, Best reaction: ${Math.round(bestFreezeTiming * 100)}%)${lastSavedRank ? ` — #${lastSavedRank} on the leaderboard!` : ''}`
+    const text = `🥭 Relapa Score: ${score} (Freezes: ${freezes}, Danced: ${danceSeconds.toFixed(1)}s, Best combo: ${bestCombo}, Best reaction: ${Math.round(bestFreezeTiming * 100)}%)${lastSavedRank ? ` — #${lastSavedRank} on the leaderboard!` : ''}`
     try {
       if (navigator.share) {
-        await navigator.share({ title: 'Freeze, Papaya!', text })
+        await navigator.share({ title: 'Relapa', text })
       } else {
         await navigator.clipboard.writeText(text)
         setShared(true)
@@ -758,16 +758,16 @@ export default function PapayaGame() {
 
   return (
     <div
-      className={`min-h-screen flex flex-col bg-[#1a0608] text-foreground ${
+      className={`min-h-screen flex flex-col bg-[#0d0608] text-foreground ${
         screenShake ? 'screen-shake' : ''
       }`}
     >
       {/* atmospheric background */}
       <div
         className="pointer-events-none fixed inset-0 opacity-40 bg-cover bg-center"
-        style={{ backgroundImage: "url('/stage-bg.png')" }}
+        style={{ backgroundImage: "url('/relapa-stage.png')" }}
       />
-      <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-[#1a0608]/70 via-[#1a0608]/85 to-[#0a0203]" />
+      <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-[#0d0608]/70 via-[#0d0608]/85 to-[#050203]" />
       {/* spotlight */}
       <div className="pointer-events-none fixed inset-0 spotlight-glow" />
 
@@ -846,26 +846,26 @@ export default function PapayaGame() {
               initial={{ scale: 0.85, y: 10 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.85, y: 10 }}
-              className="flex flex-col items-center gap-4 rounded-2xl border border-red-900/50 bg-[#1a0608] px-10 py-8 text-center shadow-2xl"
+              className="flex flex-col items-center gap-4 rounded-2xl border border-amber-900/50 bg-[#0d0608] px-10 py-8 text-center shadow-2xl"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-900/50 ring-2 ring-red-500/40">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-900/50 ring-2 ring-red-500/40">
                 <Pause className="h-7 w-7 text-red-300" />
               </div>
-              <h2 className="text-xl font-black text-red-200">PAUSED</h2>
-              <p className="max-w-xs text-xs text-red-300/70">
+              <h2 className="text-xl font-black text-amber-200">PAUSED</h2>
+              <p className="max-w-xs text-xs text-amber-300/70">
                 Music and timer are stopped. Click Resume, press{' '}
-                <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+                <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
                   P
                 </kbd>{' '}
                 or{' '}
-                <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+                <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
                   Esc
                 </kbd>
                 to get back to dancing.
               </p>
               <Button
                 onClick={togglePause}
-                className="bg-red-700 hover:bg-red-600"
+                className="bg-amber-800 hover:bg-amber-700"
               >
                 <Play className="mr-1 h-4 w-4" /> Resume
               </Button>
@@ -875,18 +875,18 @@ export default function PapayaGame() {
       </AnimatePresence>
 
       {/* ===== HEADER ===== */}
-      <header className="relative z-10 border-b border-red-900/40 bg-black/40 backdrop-blur-sm">
+      <header className="relative z-10 border-b border-amber-900/40 bg-black/50 backdrop-blur-sm">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-900/60 ring-2 ring-red-500/40">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-900/60 ring-2 ring-red-500/40">
               <Skull className="h-5 w-5 text-red-300" />
             </div>
             <div>
-              <h1 className="text-lg font-black tracking-tight text-red-200 sm:text-xl">
-                FREEZE, PAPAYA!
+              <h1 className="text-lg font-black tracking-tight text-amber-200 sm:text-xl">
+                RELAPA
               </h1>
-              <p className="text-[11px] text-red-300/70">
-                Dance to Chucky's music — freeze when the music stops
+              <p className="text-[11px] text-amber-300/70">
+                Dance for him. Freeze when he says stop.
               </p>
             </div>
           </div>
@@ -961,7 +961,7 @@ export default function PapayaGame() {
               onClick={toggleSound}
               aria-label={soundOn ? 'Mute' : 'Unmute'}
               title={soundOn ? 'Mute' : 'Unmute'}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-900/50 bg-black/40 text-red-200 transition-colors hover:bg-red-900/40 hover:text-white"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-900/50 bg-black/50 text-amber-200 transition-colors hover:bg-amber-900/40 hover:text-white"
             >
               {soundOn ? (
                 <Volume2 className="h-4 w-4" />
@@ -980,7 +980,7 @@ export default function PapayaGame() {
                 onChange={(e) => changeVolume(parseFloat(e.target.value))}
                 aria-label="Volume"
                 title={`Volume: ${Math.round(volume * 100)}%`}
-                className="vol-slider h-1.5 w-16 cursor-pointer appearance-none rounded-full bg-red-900/50 sm:w-20"
+                className="vol-slider h-1.5 w-16 cursor-pointer appearance-none rounded-full bg-amber-900/50 sm:w-20"
               />
             )}
             {/* Pause button — shown only while playing */}
@@ -990,7 +990,7 @@ export default function PapayaGame() {
                 onClick={togglePause}
                 aria-label="Pause"
                 title="Pause (P)"
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-900/50 bg-black/40 text-red-200 transition-colors hover:bg-red-900/40 hover:text-white"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-900/50 bg-black/50 text-amber-200 transition-colors hover:bg-amber-900/40 hover:text-white"
               >
                 <Pause className="h-4 w-4" />
               </button>
@@ -1002,7 +1002,7 @@ export default function PapayaGame() {
       {/* ===== MAIN ===== */}
       <main className="relative z-10 mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-4 px-4 py-5 lg:grid-cols-[1fr_340px]">
         {/* STAGE */}
-        <section className="relative flex min-h-[60vh] flex-col items-center justify-center overflow-hidden rounded-2xl border border-red-900/40 bg-gradient-to-b from-[#2a0a0e]/80 to-[#150406]/90 p-4 shadow-[0_0_60px_-15px_rgba(220,38,38,0.5)]">
+        <section className="relative flex min-h-[60vh] flex-col items-center justify-center overflow-hidden rounded-2xl border border-amber-900/40 bg-gradient-to-b from-[#1a0a10]/80 to-[#0d0306]/90 p-4 shadow-[0_0_60px_-15px_rgba(220,38,38,0.5)]">
           {/* stage curtains top */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-red-950/80 to-transparent" />
           {/* decorative curtain folds */}
@@ -1046,7 +1046,7 @@ export default function PapayaGame() {
                   className="flex items-center gap-2 text-sm font-semibold text-amber-300"
                 >
                   <Music2 className="h-4 w-4 animate-pulse" />
-                  Music is playing — Papaya is dancing!
+                  Relapa is conducting — dance!
                 </motion.div>
               )}
               {showFreezeOverlay && (
@@ -1070,7 +1070,7 @@ export default function PapayaGame() {
                   className="flex items-center gap-2 text-base font-black text-emerald-300"
                 >
                   <Zap className="h-5 w-5" />
-                  Nice! Papaya froze!
+                  Relapa froze! Perfect!
                 </motion.div>
               )}
               {state === 'gameover' && (
@@ -1119,10 +1119,10 @@ export default function PapayaGame() {
               }
             />
 
-            {/* the papaya — animated SVG floss dance */}
+            {/* the Relapa character */}
             <motion.div
-              key="papaya-svg"
-              className="relative h-[300px] w-[270px] sm:h-[360px] sm:w-[320px]"
+              key="relapa-char"
+              className="relative flex h-[300px] w-[270px] items-end justify-center sm:h-[340px] sm:w-[300px]"
               initial={{ opacity: 0, y: 20, scale: 0.85 }}
               animate={{
                 opacity: 1,
@@ -1200,9 +1200,9 @@ export default function PapayaGame() {
                       <Trophy className="h-2.5 w-2.5" /> Leaderboard
                     </span>
                   </div>
-                  <p className="text-center text-xs text-red-200/80">
+                  <p className="text-center text-xs text-amber-200/80">
                     When the music suddenly stops — press{' '}
-                    <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+                    <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
                       SPACE
                     </kbd>{' '}
                     or the FREEZE button. Don't press too early! 🔥 A streak of 3+ freezes
@@ -1218,7 +1218,7 @@ export default function PapayaGame() {
                     className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-all ${
                       dailyMode
                         ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/40'
-                        : 'border-red-900/40 bg-black/30 text-red-300/60 hover:bg-red-900/20'
+                        : 'border-amber-900/40 bg-black/40 text-amber-300/60 hover:bg-amber-900/20'
                     }`}
                   >
                     <CalendarDays className="h-4 w-4" />
@@ -1233,14 +1233,14 @@ export default function PapayaGame() {
                       onChange={(e) => setPlayerName(e.target.value)}
                       placeholder="Dancer name"
                       maxLength={24}
-                      className="border-red-900/50 bg-black/40 text-red-100 placeholder:text-red-300/40"
+                      className="border-amber-900/50 bg-black/50 text-amber-100 placeholder:text-amber-300/40"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') startGame(dailyMode)
                       }}
                     />
                     <Button
                       onClick={() => startGame(dailyMode)}
-                      className={dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-red-700 hover:bg-red-600'}
+                      className={dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-amber-800 hover:bg-amber-700'}
                     >
                       <Play className="mr-1 h-4 w-4" /> Start
                     </Button>
@@ -1249,7 +1249,7 @@ export default function PapayaGame() {
                   <button
                     type="button"
                     onClick={() => setShowTutorial(true)}
-                    className="text-[11px] text-red-300/50 underline-offset-2 transition-colors hover:text-red-200 hover:underline"
+                    className="text-[11px] text-amber-300/50 underline-offset-2 transition-colors hover:text-amber-200 hover:underline"
                   >
                     How to play?
                   </button>
@@ -1264,8 +1264,8 @@ export default function PapayaGame() {
                   exit={{ opacity: 0 }}
                   className="flex w-full flex-col items-center gap-3"
                 >
-                  <div className="flex items-center gap-2 text-center text-xs text-red-200/70">
-                    <kbd className="rounded bg-white/10 px-2 py-1 font-mono text-red-100">
+                  <div className="flex items-center gap-2 text-center text-xs text-amber-200/70">
+                    <kbd className="rounded bg-white/10 px-2 py-1 font-mono text-amber-100">
                       SPACE
                     </kbd>
                     = freeze when the music stops
@@ -1279,10 +1279,10 @@ export default function PapayaGame() {
                     }}
                     className={`flex h-16 w-full select-none items-center justify-center gap-2 rounded-xl border-2 text-base font-black tracking-wide transition-all active:scale-95 ${
                       showFreezeOverlay
-                        ? 'animate-pulse border-red-400 bg-red-600/40 text-white shadow-[0_0_30px_-5px_rgba(248,113,113,0.7)]'
+                        ? 'animate-pulse border-amber-400 bg-amber-600/40 text-white shadow-[0_0_30px_-5px_rgba(248,113,113,0.7)]'
                         : dancing
-                          ? 'border-red-800/50 bg-black/40 text-red-200 hover:border-red-500/60 hover:bg-red-900/30'
-                          : 'border-slate-600/50 bg-black/40 text-slate-300'
+                          ? 'border-amber-800/50 bg-black/50 text-amber-200 hover:border-red-500/60 hover:bg-amber-900/30'
+                          : 'border-slate-600/50 bg-black/50 text-slate-300'
                     }`}
                     aria-label="Freeze"
                   >
@@ -1357,8 +1357,8 @@ export default function PapayaGame() {
 
                   {/* Best freeze timing bar — shown when freezes > 0 */}
                   {freezes > 0 && (
-                    <div className="w-full rounded-lg bg-black/30 p-2.5">
-                      <div className="mb-1 flex items-center justify-between text-[9px] uppercase tracking-wider text-red-300/50">
+                    <div className="w-full rounded-lg bg-black/40 p-2.5">
+                      <div className="mb-1 flex items-center justify-between text-[9px] uppercase tracking-wider text-amber-300/50">
                         <span>Best reaction</span>
                         <span className="font-mono text-amber-300">
                           {Math.round(bestFreezeTiming * 100)}%
@@ -1375,8 +1375,8 @@ export default function PapayaGame() {
 
                   {/* Round history timeline — shows each freeze's timing */}
                   {roundHistory.length > 0 && (
-                    <div className="w-full rounded-lg bg-black/30 p-2.5">
-                      <div className="mb-1.5 text-center text-[9px] uppercase tracking-wider text-red-300/50">
+                    <div className="w-full rounded-lg bg-black/40 p-2.5">
+                      <div className="mb-1.5 text-center text-[9px] uppercase tracking-wider text-amber-300/50">
                         Freeze history
                       </div>
                       <div className="flex flex-wrap items-center justify-center gap-1">
@@ -1422,7 +1422,7 @@ export default function PapayaGame() {
                   <div className="flex w-full gap-2">
                     <Button
                       onClick={() => startGame(dailyMode)}
-                      className={`flex-1 ${dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-red-700 hover:bg-red-600'}`}
+                      className={`flex-1 ${dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-amber-800 hover:bg-amber-700'}`}
                     >
                       <RotateCcw className="mr-1 h-4 w-4" /> Play again
                     </Button>
@@ -1445,7 +1445,7 @@ export default function PapayaGame() {
                   </div>
                   {/* Lifetime session stats */}
                   {sessionStats.games > 0 && (
-                    <div className="flex w-full items-center justify-center gap-3 rounded-lg bg-black/30 px-3 py-2 text-[10px] text-red-300/50">
+                    <div className="flex w-full items-center justify-center gap-3 rounded-lg bg-black/40 px-3 py-2 text-[10px] text-amber-300/50">
                       <span>🎮 {sessionStats.games} games</span>
                       <span>·</span>
                       <span>🥭 {sessionStats.totalFreezes} freezes</span>
@@ -1461,8 +1461,8 @@ export default function PapayaGame() {
 
         {/* ===== LEADERBOARD ===== */}
         <aside className="relative flex flex-col gap-3">
-          <Card className="flex flex-1 flex-col border-red-900/40 bg-black/50 backdrop-blur-sm">
-            <div className="flex items-center justify-between border-b border-red-900/40 px-4 py-3">
+          <Card className="flex flex-1 flex-col border-amber-900/40 bg-black/50 backdrop-blur-sm">
+            <div className="flex items-center justify-between border-b border-amber-900/40 px-4 py-3">
               <div className="flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-amber-400" />
                 <h2 className="text-sm font-bold tracking-wide text-amber-200">
@@ -1474,7 +1474,7 @@ export default function PapayaGame() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowAchPanel(true)}
-                  className="h-7 gap-1 px-2 text-xs text-red-300/70 hover:text-red-200"
+                  className="h-7 gap-1 px-2 text-xs text-amber-300/70 hover:text-amber-200"
                   title="Achievements"
                 >
                   <Medal className="h-3 w-3" />
@@ -1486,13 +1486,13 @@ export default function PapayaGame() {
                   variant="ghost"
                   size="sm"
                   onClick={() => fetchLeaderboard(leaderboardFilter)}
-                  className="h-7 px-2 text-xs text-red-300/70 hover:text-red-200"
+                  className="h-7 px-2 text-xs text-amber-300/70 hover:text-amber-200"
                 >
                   <RotateCcw className="h-3 w-3" />
                 </Button>
               </div>
               {/* Filter tabs */}
-              <div className="flex gap-1 border-t border-red-900/30 px-2 py-1.5">
+              <div className="flex gap-1 border-t border-amber-900/30 px-2 py-1.5">
                 {(['all', 'today'] as const).map((f) => (
                   <button
                     key={f}
@@ -1501,7 +1501,7 @@ export default function PapayaGame() {
                     className={`rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-all ${
                       leaderboardFilter === f
                         ? 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40'
-                        : 'text-red-300/50 hover:bg-red-900/20 hover:text-red-200'
+                        : 'text-amber-300/50 hover:bg-amber-900/20 hover:text-amber-200'
                     }`}
                   >
                     {f === 'all' ? 'All' : 'Today'}
@@ -1512,7 +1512,7 @@ export default function PapayaGame() {
             <ScrollArea className="flex-1">
               <div className="px-2 py-2">
                 {leaderboard.length === 0 ? (
-                  <div className="px-3 py-10 text-center text-xs text-red-300/50">
+                  <div className="px-3 py-10 text-center text-xs text-amber-300/50">
                     No records yet.
                     <br />
                     Be the first!
@@ -1543,19 +1543,19 @@ export default function PapayaGame() {
                                   ? 'bg-slate-300 text-slate-900'
                                   : i === 2
                                     ? 'bg-orange-600 text-orange-50'
-                                    : 'bg-white/10 text-red-200/70'
+                                    : 'bg-white/10 text-amber-200/70'
                             }`}
                           >
                             {i + 1}
                           </span>
                           <div className="flex min-w-0 flex-1 flex-col">
-                            <span className="flex items-center gap-1 truncate font-semibold text-red-100">
+                            <span className="flex items-center gap-1 truncate font-semibold text-amber-100">
                               {s.playerName}
                               {isMyBest && (
                                 <Star className="h-3 w-3 shrink-0 fill-cyan-300 text-cyan-300" />
                               )}
                             </span>
-                            <span className="text-[10px] text-red-300/60">
+                            <span className="text-[10px] text-amber-300/60">
                               {s.freezes} freezes · {s.danceSeconds}s
                             </span>
                           </div>
@@ -1569,14 +1569,14 @@ export default function PapayaGame() {
                 )}
               </div>
             </ScrollArea>
-            <Separator className="bg-red-900/30" />
-            <div className="px-4 py-2 text-center text-[10px] text-red-300/50">
+            <Separator className="bg-amber-900/30" />
+            <div className="px-4 py-2 text-center text-[10px] text-amber-300/50">
               Score = freezes × 100 × multiplier + seconds
             </div>
           </Card>
           {/* Lifetime session stats card */}
           {sessionStats.games > 0 && (
-            <Card className="border-amber-900/30 bg-black/40 p-3 backdrop-blur-sm">
+            <Card className="border-amber-900/30 bg-black/50 p-3 backdrop-blur-sm">
               <div className="mb-2 flex items-center gap-1.5">
                 <TrendingUp className="h-3.5 w-3.5 text-amber-400" />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200/70">
@@ -1588,19 +1588,19 @@ export default function PapayaGame() {
                   <span className="font-mono text-base font-black text-amber-200">
                     {sessionStats.games}
                   </span>
-                  <span className="text-[9px] text-red-300/50">games</span>
+                  <span className="text-[9px] text-amber-300/50">games</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="font-mono text-base font-black text-emerald-200">
                     {sessionStats.totalFreezes}
                   </span>
-                  <span className="text-[9px] text-red-300/50">freezes</span>
+                  <span className="text-[9px] text-amber-300/50">freezes</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="font-mono text-base font-black text-violet-200">
                     {sessionStats.totalDanceSeconds}s
                   </span>
-                  <span className="text-[9px] text-red-300/50">danced</span>
+                  <span className="text-[9px] text-amber-300/50">danced</span>
                 </div>
               </div>
             </Card>
@@ -1609,11 +1609,11 @@ export default function PapayaGame() {
       </main>
 
       {/* ===== FOOTER ===== */}
-      <footer className="relative z-10 mt-auto border-t border-red-900/40 bg-black/50 backdrop-blur-sm">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 text-xs text-red-300/60">
+      <footer className="relative z-10 mt-auto border-t border-amber-900/40 bg-black/50 backdrop-blur-sm">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 text-xs text-amber-300/60">
           <div className="flex flex-col items-center justify-between gap-2 sm:flex-row sm:text-left">
             <span>
-              🥭 Papaya dances to a creepy tune. Freeze when the music
+              🥭 Relapa the ant conductor commands the stage. Freeze when he
               stops!
             </span>
             <span className="flex items-center gap-3">
@@ -1623,37 +1623,37 @@ export default function PapayaGame() {
             </span>
           </div>
           {/* keyboard shortcuts row */}
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-red-900/20 pt-2 text-center text-[10px] text-red-300/40">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-amber-900/20 pt-2 text-center text-[10px] text-amber-300/40">
             <span className="flex items-center gap-1">
-              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
                 SPACE
               </kbd>
               freeze
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
                 P
               </kbd>
               /
-              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
                 Esc
               </kbd>
               pause
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
                 Enter
               </kbd>
               start
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
                 D
               </kbd>
               challenge
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
                 M
               </kbd>
               sound
@@ -1805,7 +1805,7 @@ function Equalizer({ active, muted }: { active: boolean; muted: boolean }) {
   const bars = [0, 1, 2, 3, 4]
   return (
     <div
-      className={`flex h-8 items-end gap-0.5 rounded-md bg-black/40 px-1.5 py-1 ring-1 ring-red-900/40 ${
+      className={`flex h-8 items-end gap-0.5 rounded-md bg-black/50 px-1.5 py-1 ring-1 ring-amber-900/40 ${
         muted ? 'opacity-50' : ''
       }`}
       title={muted ? 'Sound off' : 'Music playing'}
@@ -1918,7 +1918,7 @@ function AchievementsPanel({
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
         transition={{ type: 'spring', stiffness: 240, damping: 22 }}
-        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-amber-900/50 bg-[#1a0608] shadow-2xl"
+        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-amber-900/50 bg-[#0d0608] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-amber-900/40 px-5 py-3">
@@ -1934,7 +1934,7 @@ function AchievementsPanel({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-red-300/70 transition-colors hover:bg-red-900/40 hover:text-white"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-amber-300/70 transition-colors hover:bg-amber-900/40 hover:text-white"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1951,14 +1951,14 @@ function AchievementsPanel({
                   className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
                     isUnlocked
                       ? 'border-amber-400/40 bg-amber-500/10'
-                      : 'border-red-900/30 bg-black/30 opacity-60'
+                      : 'border-amber-900/30 bg-black/40 opacity-60'
                   }`}
                 >
                   <span
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${
                       isUnlocked
                         ? 'bg-amber-500/20 ring-1 ring-amber-400/40'
-                        : 'bg-black/40 grayscale'
+                        : 'bg-black/50 grayscale'
                     }`}
                   >
                     {isUnlocked ? a.icon : '🔒'}
@@ -1966,12 +1966,12 @@ function AchievementsPanel({
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span
                       className={`text-sm font-bold ${
-                        isUnlocked ? 'text-amber-100' : 'text-red-200/50'
+                        isUnlocked ? 'text-amber-100' : 'text-amber-200/50'
                       }`}
                     >
                       {a.title}
                     </span>
-                    <span className="text-[11px] text-red-300/50">
+                    <span className="text-[11px] text-amber-300/50">
                       {a.desc}
                     </span>
                   </div>
@@ -2033,22 +2033,22 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
         transition={{ type: 'spring', stiffness: 240, damping: 22 }}
-        className="w-full max-w-lg rounded-2xl border border-red-900/50 bg-[#1a0608] p-6 shadow-2xl"
+        className="w-full max-w-lg rounded-2xl border border-amber-900/50 bg-[#0d0608] p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 text-center">
           <motion.div
-            className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-red-900/50 ring-2 ring-red-500/40"
+            className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-amber-900/50 ring-2 ring-red-500/40"
             animate={{ rotate: [0, -8, 8, 0] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
             <Skull className="h-8 w-8 text-red-300" />
           </motion.div>
-          <h2 className="text-xl font-black text-red-200">
+          <h2 className="text-xl font-black text-amber-200">
             HOW TO PLAY
           </h2>
-          <p className="text-xs text-red-300/60">
-            Freeze, Papaya! — a reaction-based dance game
+          <p className="text-xs text-amber-300/60">
+            Relapa — a reaction-based dance game
           </p>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -2058,14 +2058,14 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 * i }}
-              className="flex items-start gap-3 rounded-lg border border-red-900/30 bg-black/30 p-3"
+              className="flex items-start gap-3 rounded-lg border border-amber-900/30 bg-black/40 p-3"
             >
               <span className="text-2xl">{s.icon}</span>
               <div className="flex flex-col">
-                <span className="text-sm font-bold text-red-100">
+                <span className="text-sm font-bold text-amber-100">
                   {s.title}
                 </span>
-                <span className="text-[11px] leading-snug text-red-300/60">
+                <span className="text-[11px] leading-snug text-amber-300/60">
                   {s.desc}
                 </span>
               </div>
@@ -2074,7 +2074,7 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
         </div>
         <Button
           onClick={onClose}
-          className="mt-5 w-full bg-red-700 hover:bg-red-600"
+          className="mt-5 w-full bg-amber-800 hover:bg-amber-700"
         >
           <Play className="mr-1 h-4 w-4" /> Got it, let's play!
         </Button>

@@ -193,3 +193,44 @@ Unresolved issues / risks:
 Artifacts modified this round:
 - `src/lib/achievements.ts` (NEW) — 10 achievement definitions + localStorage helpers + check function.
 - `src/components/papaya-game.tsx` — achievements state/toast/panel, pause logic + overlay, tutorial overlay, stage visual polish, "Как играть?" link, achievements button in sidebar.
+
+---
+Task ID: 5 (webDevReview cron round 4 + round 5)
+Agent: webDevReview (Z.ai Code, cron job 214383)
+Task: QA the game, finish incomplete round-4 features, then add more features and styling per mandatory requirements.
+
+Work Log:
+- Read worklog.md; confirmed server alive (HTTP 200, PPID=1 daemons). Found that round 4 (previous session) had started but not documented: countdown, share button, session stats, screen shake, keyboard hints footer were already in the code.
+- Fixed 1 lint warning (unused eslint-disable directive for session-stats localStorage load).
+- QA verified round-4 features via agent-browser: countdown (3-2-1 → dancing ✓), share button on game-over ✓, session stats (🎮 2 игр ✓), screen shake CSS ✓, keyboard hints footer ✓.
+- Added NEW FEATURES this round (round 5):
+  1. **Volume slider** — `ChuckyEngine.setVolume(v)` method (live master gain ramp), volume state in component, custom amber gradient slider thumb in header (shown only when sound on). Applied at game start, resume-from-pause, and live on change. Custom CSS for webkit/moz thumb.
+  2. **Perfect-freeze timing bonus** — when the player freezes, `freezeProgress` is read: >0.66 = "ИДЕАЛ!" (×1.5 score bonus), >0.33 = "Хорошо!" (×1.2), else normal. Timing label shown in the flash message. Bonus factored into achievement-check score.
+  3. **Lifetime stats card in sidebar** — a second Card below the leaderboard showing "За всё время" (games / totalFreezes / totalDanceSeconds) with color-coded numbers (amber/emerald/violet). Only shows after the first game (games > 0). Persisted in localStorage (`papaya-session-stats`), updated on every game over.
+- STYLING polish:
+  - Volume slider: custom amber gradient thumb with glow shadow, red track.
+  - Stats card: 3-column grid with semantic colors matching the stat chips.
+  - Screen shake: cubic-bezier keyframe animation on the freeze moment.
+- ESLint: 0 errors, 0 warnings.
+- QA verified via agent-browser:
+  - Volume slider: present in idle (0.5), changeable to 0.8 ✓
+  - Countdown: 3-2-1 then dancing (is-dancing) ✓
+  - Game-over: share button + session stats (🎮 2 игр) ✓
+  - Lifetime stats card: renders in sidebar after games played (2 игр / 0 замри / 0с) ✓
+  - No console/runtime errors.
+
+Stage Summary:
+- 3 new features: volume slider (live control), perfect-freeze timing bonus (×1.5/×1.2), lifetime stats card in sidebar.
+- All round-4 features confirmed working (countdown, share, session stats, screen shake, keyboard hints).
+- ESLint clean; server stable (HTTP 200, PPID=1 daemons).
+
+Unresolved issues / risks:
+- The floss animation still has one "neutral zero-crossing" frame per cycle (minor, cosmetic).
+- Procedural music remains synthesized (copyright-safe).
+- Web Audio requires a real user gesture (expected browser behavior).
+- Next steps could add: daily challenge mode, more achievements (Perfect Game = no early/late), character skins, or a "best freeze timing" tracker.
+
+Artifacts modified this round:
+- `src/lib/music.ts` — `setVolume()` method + `currentVolume` getter, volume applied in `start()`.
+- `src/components/papaya-game.tsx` — volume state/slider, perfect-freeze timing bonus, lifetime stats card, volume applied at start/resume.
+- `src/app/globals.css` — volume slider thumb styling (webkit + moz).

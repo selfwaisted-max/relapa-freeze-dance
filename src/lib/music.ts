@@ -130,6 +130,27 @@ export class ChuckyEngine {
     return this.playing
   }
 
+  private volume = 0.5
+
+  /** Set master volume (0..1). Applied live to the master gain node. */
+  setVolume(v: number) {
+    const clamped = Math.max(0, Math.min(1, v))
+    this.volume = clamped
+    if (this.ctx && this.master && this.playing) {
+      const now = this.ctx.currentTime
+      this.master.gain.cancelScheduledValues(now)
+      this.master.gain.setValueAtTime(this.master.gain.value, now)
+      this.master.gain.exponentialRampToValueAtTime(
+        Math.max(0.0001, clamped),
+        now + 0.1
+      )
+    }
+  }
+
+  get currentVolume() {
+    return this.volume
+  }
+
   async start() {
     if (!this.ctx) await this.init()
     if (!this.ctx || this.playing) return
@@ -141,7 +162,10 @@ export class ChuckyEngine {
     const now = this.ctx.currentTime
     this.master!.gain.cancelScheduledValues(now)
     this.master!.gain.setValueAtTime(0.0001, now)
-    this.master!.gain.exponentialRampToValueAtTime(0.5, now + 0.3)
+    this.master!.gain.exponentialRampToValueAtTime(
+      Math.max(0.0001, this.volume),
+      now + 0.3
+    )
 
     this.scheduleMelody()
     this.melodyTimer = setInterval(() => this.scheduleMelody(), 250)

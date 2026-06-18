@@ -150,3 +150,203 @@
   background: rgba(220, 38, 38, 0.4);
   border-radius: 3px;
 }
+
+/* ============================================================
+   Papaya Floss Dance — animated SVG character
+   ============================================================ */
+
+.papaya {
+  display: block;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.45));
+}
+
+/* All animated parts share the SVG viewBox coordinate system for origins */
+.papaya .bob-group,
+.papaya .body-group,
+.papaya .hips-group,
+.papaya .arm-back,
+.papaya .arm-front {
+  transform-box: view-box;
+  will-change: transform;
+}
+.papaya .body-group {
+  transform-origin: 150px 212px;
+}
+.papaya .hips-group {
+  transform-origin: 150px 262px;
+}
+.papaya .arm-back {
+  transform-origin: 77px 198px;
+}
+.papaya .arm-front {
+  transform-origin: 223px 198px;
+}
+
+/* ---- face switching ---- */
+.papaya .face-surprised {
+  display: none;
+}
+.papaya.is-frozen .face-happy {
+  display: none;
+}
+.papaya.is-frozen .face-surprised {
+  display: block;
+}
+
+/* ---- subtle frost tint when frozen (keeps color, adds chill) ---- */
+.papaya.is-frozen {
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 10px rgba(103, 232, 249, 0.45));
+}
+
+/* ---- IDLE: gentle sway + bob, arms relaxed ---- */
+.papaya.is-idle .body-group {
+  animation: papaya-idle-sway 2.8s ease-in-out infinite;
+}
+.papaya.is-idle .hips-group {
+  animation: papaya-idle-sway 2.8s ease-in-out infinite;
+  animation-delay: -1.4s;
+}
+.papaya.is-idle .bob-group {
+  animation: papaya-idle-bob 2.8s ease-in-out infinite;
+}
+
+/* ---- DANCING: full floss ---- */
+.papaya.is-dancing .body-group {
+  animation: papaya-floss-body 0.65s ease-in-out infinite;
+}
+.papaya.is-dancing .hips-group {
+  animation: papaya-floss-hips 0.65s ease-in-out infinite;
+}
+.papaya.is-dancing .bob-group {
+  animation: papaya-floss-bob 0.65s ease-in-out infinite;
+}
+/* Back arm (left shoulder) swings across BEHIND the body */
+.papaya.is-dancing .arm-back {
+  animation: papaya-floss-arm-back 0.65s ease-in-out infinite;
+}
+/* Front arm (right shoulder) swings across IN FRONT of the body */
+.papaya.is-dancing .arm-front {
+  animation: papaya-floss-arm-front 0.65s ease-in-out infinite;
+}
+
+/* ---- FROZEN: pause every animation in place ---- */
+.papaya.is-frozen .body-group,
+.papaya.is-frozen .hips-group,
+.papaya.is-frozen .bob-group,
+.papaya.is-frozen .arm-back,
+.papaya.is-frozen .arm-front {
+  animation-play-state: paused;
+}
+
+/* ===== Keyframes ===== */
+
+/* Shoulders sway side to side */
+@keyframes papaya-floss-body {
+  0% {
+    transform: translateX(-5px) rotate(-3deg);
+  }
+  50% {
+    transform: translateX(5px) rotate(3deg);
+  }
+  100% {
+    transform: translateX(-5px) rotate(-3deg);
+  }
+}
+
+/* Hips sway OPPOSITE to shoulders — the signature floss motion */
+@keyframes papaya-floss-hips {
+  0% {
+    transform: translateX(6px) rotate(2deg);
+  }
+  50% {
+    transform: translateX(-6px) rotate(-2deg);
+  }
+  100% {
+    transform: translateX(6px) rotate(2deg);
+  }
+}
+
+@keyframes papaya-floss-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+/* Back arm (left) swings right across the body (behind torso) and out left */
+@keyframes papaya-floss-arm-back {
+  0% {
+    transform: translate(0, 0) rotate(-20deg);
+  }
+  25% {
+    transform: translate(118px, -8px) rotate(28deg);
+  }
+  50% {
+    transform: translate(96px, 8px) rotate(6deg);
+  }
+  75% {
+    transform: translate(-40px, 0) rotate(-42deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(-20deg);
+  }
+}
+
+/* Front arm (right) swings left across the body (in front of torso) and out right */
+@keyframes papaya-floss-arm-front {
+  0% {
+    transform: translate(0, 0) rotate(20deg);
+  }
+  25% {
+    transform: translate(-118px, -8px) rotate(-28deg);
+  }
+  50% {
+    transform: translate(-96px, 8px) rotate(-6deg);
+  }
+  75% {
+    transform: translate(40px, 0) rotate(42deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(20deg);
+  }
+}
+
+@keyframes papaya-idle-sway {
+  0%,
+  100% {
+    transform: translateX(-2px) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateX(2px) rotate(1.5deg);
+  }
+}
+
+@keyframes papaya-idle-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .papaya .body-group,
+  .papaya .hips-group,
+  .papaya .bob-group,
+  .papaya .arm-back,
+  .papaya .arm-front {
+    animation-duration: 1.6s !important;
+  }
+}
+
+

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { ChuckyEngine } from '@/lib/music'
+import { PapayaCharacter } from '@/components/papaya-character'
 import {
   Music2,
   Hand,
@@ -439,50 +440,16 @@ export default function PapayaGame() {
               }
             />
 
-            {/* the papaya */}
-            <AnimatePresence mode="wait">
-              {state === 'idle' ? (
-                <motion.img
-                  key="idle"
-                  src="/papaya-dance.png"
-                  alt="Папайа"
-                  className="h-[280px] w-auto drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)] sm:h-[320px]"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0, rotate: [0, -3, 3, -3, 0] }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ rotate: { duration: 2.4, repeat: Infinity } }}
-                />
-              ) : (
-                <motion.img
-                  key="active"
-                  src={dancing || showFreezeOverlay ? '/papaya-dance.png' : '/papaya-frozen.png'}
-                  alt="Папайа"
-                  className="h-[280px] w-auto select-none drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)] sm:h-[320px]"
-                  animate={
-                    dancing
-                      ? {
-                          y: [0, -22, 0, -14, 0],
-                          rotate: [-4, 5, -6, 4, -4],
-                          scaleX: [1, 0.94, 1.06, 0.96, 1],
-                        }
-                      : showFreezeOverlay
-                        ? {
-                            y: [0, -10, 0],
-                            rotate: [-2, 2, -2],
-                            transition: { duration: 0.3, repeat: Infinity },
-                          }
-                        : state === 'frozen'
-                          ? { rotate: -2, scale: 1.02 }
-                          : { rotate: 0, scale: 1 }
-                  }
-                  transition={
-                    dancing
-                      ? { duration: 0.55, repeat: Infinity, ease: 'easeInOut' }
-                      : { duration: 0.2 }
-                  }
-                />
-              )}
-            </AnimatePresence>
+            {/* the papaya — animated SVG floss dance */}
+            <motion.div
+              key="papaya-svg"
+              className="relative h-[300px] w-[270px] sm:h-[360px] sm:w-[320px]"
+              initial={{ opacity: 0, y: 20, scale: 0.85 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 18 }}
+            >
+              <PapayaCharacter state={state} />
+            </motion.div>
 
             {/* floating notes while dancing */}
             {dancing && (

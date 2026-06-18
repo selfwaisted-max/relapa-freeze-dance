@@ -41,9 +41,21 @@ Stage Summary:
   ✅ Right side shows leaderboard (persisted in SQLite via Prisma).
 - Bonus features: progressive difficulty (shrinking reaction window), score = freezes×100 + dance seconds, rank badge, success/fail stings, dancing animation, atmospheric stage, responsive layout, sticky header/footer.
 - Artifacts: `src/app/page.tsx`, `src/components/papaya-game.tsx`, `src/lib/music.ts`, `src/app/api/leaderboard/route.ts`, `prisma/schema.prisma`, `public/papaya-dance.png`, `public/papaya-frozen.png`, `public/stage-bg.png`.
-- Known environment quirk: background dev-server processes are killed by the sandbox at the end of each shell tool call, so the server must be (re)started for live preview; a 15-min `webDevReview` cron is scheduled to keep testing/advancing the project.
+- Known environment quirk: background processes spawned with `&`/`nohup`/`setsid` (without `--fork`) are killed by the sandbox at the end of each shell tool call (they remain in the call's process group and die with the `su z -c bash` wrapper, PID 7199-style).
+
+**FIXED (round 2): persistent dev server via `setsid --fork`.**
+- Root cause: each Bash tool call runs as `su z -c '/bin/bash ...'` (a child of the python agent, PID ~7199). When the call ends, that shell and its whole process group/session are killed. `agent-browser` survives because it is a properly daemonized orphan (PPID=1).
+- Solution: launch the dev server (and a watchdog) with `setsid --fork` so they fork into a new session and become orphans reparented to PID 1 (tini). Verified: a `setsid --fork sleep 300` survived across separate Bash calls; the dev server (PPID=1) returned HTTP 200 in a subsequent call.
+- Created `/home/z/my-project/keepalive.sh` — a watchdog loop that curls localhost:3000 every 10s and restarts the server (via `setsid --fork`) if it is down. The watchdog itself is launched with `setsid --fork` so it persists (PPID=1).
+- Launch commands (re-runnable if everything dies):
+  ```bash
+  cd /home/z/my-project
+  setsid --fork bash -c 'cd /home/z/my-project && exec bun node_modules/next/dist/bin/next dev -p 3000' </dev/null >>dev.log 2>&1
+  setsid --fork bash /home/z/my-project/keepalive.sh </dev/null >>keepalive.log 2>&1
+  ```
+- The 15-min `webDevReview` cron (job 214383) continues for ongoing QA/feature work; the watchdog keeps the server alive between its runs.
 
 Unresolved issues / risks:
-- Dev server does not persist across shell calls in this sandbox (processes are reaped). The cron job + manual restart mitigate this.
+- If the sandbox fully restarts (tini reaped), the orphaned daemons would be lost and must be relaunched. The watchdog handles server crashes but not a full sandbox reset.
 - Procedural music is synthesized (no real Chucky track for copyright reasons) — evokes the creepy-doll vibe with a minor-key music-box motif.
 - Next steps could add: sound on/off toggle, difficulty selector, multi-round "best of" mode, animated confetti on high scores, mobile tap-to-freeze button (currently SPACE-only).

@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { ChuckyEngine } from '@/lib/music'
-import { PapayaCharacter, SKINS, type Skin } from '@/components/papaya-character'
+import { PapayaCharacter } from '@/components/papaya-character'
 import {
   ACHIEVEMENTS,
   loadUnlocked,
@@ -64,27 +64,22 @@ type ScoreEntry = {
 }
 
 type FailReason = 'early' | 'late' | null
-type Difficulty = 'easy' | 'normal' | 'hard'
 
-// Difficulty presets: freeze reaction window (ms) per round-tier + music duration range.
-const DIFFICULTY_PRESETS: Record<
-  Difficulty,
-  { baseWindow: number; minWindow: number; musicMin: number; musicMax: number; label: string }
-> = {
-  easy: { baseWindow: 1900, minWindow: 1200, musicMin: 4000, musicMax: 7500, label: 'Easy' },
-  normal: { baseWindow: 1500, minWindow: 850, musicMin: 3000, musicMax: 6500, label: 'Normal' },
-  hard: { baseWindow: 1100, minWindow: 600, musicMin: 2500, musicMax: 5500, label: 'Hard' },
+// Progressive difficulty: freeze window shrinks and music gets shorter each round.
+// Round 1 = 1800ms window, shrinks 120ms per round, clamped to 500ms minimum.
+const BASE_WINDOW = 1800
+const MIN_WINDOW = 500
+const WINDOW_SHRINK = 120
+
+function getFreezeWindow(round: number) {
+  return Math.max(MIN_WINDOW, BASE_WINDOW - (round - 1) * WINDOW_SHRINK)
 }
 
-// Reaction window shrinks with rounds, clamped to the difficulty's min.
-function getFreezeWindow(round: number, diff: Difficulty) {
-  const { baseWindow, minWindow } = DIFFICULTY_PRESETS[diff]
-  const shrink = Math.floor((round - 1) / 2) * 150
-  return Math.max(minWindow, baseWindow - shrink)
-}
-
-function randMusicDuration(diff: Difficulty) {
-  const { musicMin, musicMax } = DIFFICULTY_PRESETS[diff]
+// Music duration also shortens with rounds: starts 4000-7500ms, shrinks toward 2500-4500ms.
+function randMusicDuration(round: number) {
+  const shrink = Math.min(1500, (round - 1) * 120)
+  const musicMin = Math.max(2500, 4000 - shrink)
+  const musicMax = Math.max(4500, 7500 - shrink)
   return musicMin + Math.random() * (musicMax - musicMin)
 }
 
@@ -106,9 +101,10 @@ function mulberry32(seed: number) {
   }
 }
 
-function dailyMusicDuration(diff: Difficulty): number {
-  const { musicMin, musicMax } = DIFFICULTY_PRESETS[diff]
-  // Use a module-level seeded RNG for daily challenge; created on demand
+function dailyMusicDuration(round: number): number {
+  const shrink = Math.min(1500, (round - 1) * 120)
+  const musicMin = Math.max(2500, 4000 - shrink)
+  const musicMax = Math.max(4500, 7500 - shrink)
   return musicMin + dailyRand() * (musicMax - musicMin)
 }
 
@@ -135,8 +131,6 @@ export default function PapayaGame() {
   const [flash, setFlash] = useState<string | null>(null)
   const [soundOn, setSoundOn] = useState(true)
   const [volume, setVolume] = useState(0.5)
-  const [difficulty, setDifficulty] = useState<Difficulty>('normal')
-  const [skin, setSkin] = useState<Skin>('papaya')
   const [dailyMode, setDailyMode] = useState(false)
   const [confetti, setConfetti] = useState(false)
   const [combo, setCombo] = useState(0) // consecutive freezes (resets on miss/early)
@@ -146,7 +140,6 @@ export default function PapayaGame() {
   const [roundHistory, setRoundHistory] = useState<
     { timing: 'perfect' | 'good' | 'normal'; round: number }[]
   >([])
-  const [triedSkins, setTriedSkins] = useState<Set<Skin>>(new Set(['papaya']))
   const [personalBest, setPersonalBest] = useState<number | null>(null)
   const [isNewBest, setIsNewBest] = useState(false)
   const [unlockedAch, setUnlockedAch] = useState<Set<string>>(new Set())
@@ -174,7 +167,6 @@ export default function PapayaGame() {
   const freezeWindowRef = useRef<number>(1500)
   const stateRef = useRef<GameState>('idle')
   const roundRef = useRef(1)
-  const difficultyRef = useRef<Difficulty>('normal')
   const soundOnRef = useRef<boolean>(true)
   const comboRef = useRef(0)
 
@@ -185,9 +177,6 @@ export default function PapayaGame() {
   useEffect(() => {
     roundRef.current = round
   }, [round])
-  useEffect(() => {
-    difficultyRef.current = difficulty
-  }, [difficulty])
   useEffect(() => {
     soundOnRef.current = soundOn
   }, [soundOn])
@@ -214,20 +203,6 @@ export default function PapayaGame() {
         const parsed = JSON.parse(stats)
         if (parsed && typeof parsed === 'object') setSessionStats(parsed)
       }
-      const savedSkin = localStorage.getItem('papaya-skin')
-      if (savedSkin) {
-        setSkin(savedSkin as Skin)
-      }
-      const triedRaw = localStorage.getItem('papaya-tried-skins')
-      if (triedRaw) {
-        const arr = JSON.parse(triedRaw) as string[]
-        if (Array.isArray(arr)) setTriedSkins(new Set(arr as Skin[]))
-      }
-      // Load persisted settings (difficulty, sound, volume)
-      const savedDiff = localStorage.getItem('papaya-difficulty')
-      if (savedDiff === 'easy' || savedDiff === 'normal' || savedDiff === 'hard') {
-        setDifficulty(savedDiff)
-      }
       const savedSound = localStorage.getItem('papaya-sound')
       if (savedSound === '0') setSoundOn(false)
       const savedVol = localStorage.getItem('papaya-volume')
@@ -243,13 +218,6 @@ export default function PapayaGame() {
   // Persist settings whenever they change
   useEffect(() => {
     try {
-      localStorage.setItem('papaya-difficulty', difficulty)
-    } catch {
-      /* ignore */
-    }
-  }, [difficulty])
-  useEffect(() => {
-    try {
       localStorage.setItem('papaya-sound', soundOn ? '1' : '0')
     } catch {
       /* ignore */
@@ -262,27 +230,6 @@ export default function PapayaGame() {
       /* ignore */
     }
   }, [volume])
-
-  // Persist skin choice + track tried skins for achievement
-  const changeSkin = (s: Skin) => {
-    setSkin(s)
-    setTriedSkins((prev) => {
-      if (prev.has(s)) return prev
-      const next = new Set(prev)
-      next.add(s)
-      try {
-        localStorage.setItem('papaya-tried-skins', JSON.stringify([...next]))
-      } catch {
-        /* ignore */
-      }
-      return next
-    })
-    try {
-      localStorage.setItem('papaya-skin', s)
-    } catch {
-      /* ignore */
-    }
-  }
 
   // Combo multiplier: every 3 consecutive freezes adds +0.5x (capped at 3x)
   const comboMultiplier = Math.min(3, 1 + Math.floor(combo / 3) * 0.5)
@@ -462,7 +409,6 @@ export default function PapayaGame() {
         round,
         score: finalScore,
         perfectFreezes,
-        skinsUnlocked: triedSkins.size,
       })
       // Update + persist lifetime session stats
       setSessionStats((prev) => {
@@ -515,7 +461,7 @@ export default function PapayaGame() {
     setState('freeze')
     stopDanceTimer()
     engineRef.current?.stop()
-    const win = getFreezeWindow(roundRef.current, difficultyRef.current)
+    const win = getFreezeWindow(roundRef.current)
     freezeWindowRef.current = win
     freezeStartRef.current = performance.now()
     setFreezeProgress(1)
@@ -544,8 +490,8 @@ export default function PapayaGame() {
   const scheduleMusicStop = () => {
     if (musicStopTimer.current) clearTimeout(musicStopTimer.current)
     const dur = dailyMode
-      ? dailyMusicDuration(difficultyRef.current)
-      : randMusicDuration(difficultyRef.current)
+      ? dailyMusicDuration(roundRef.current)
+      : randMusicDuration(roundRef.current)
     musicStopTimer.current = setTimeout(() => {
       triggerFreezeRef.current()
     }, dur)
@@ -598,7 +544,6 @@ export default function PapayaGame() {
       round: newRound,
       score: runScore,
       perfectFreezes: newPerfectFreezes,
-      skinsUnlocked: triedSkins.size,
     })
 
     // Celebrate milestones: every 5 freezes triggers confetti
@@ -710,23 +655,8 @@ export default function PapayaGame() {
           return
         }
       }
-      // Idle-state shortcuts: 1/2/3 = difficulty, D = daily, M = sound
+      // Idle-state shortcuts: D = daily challenge
       if (stateRef.current === 'idle') {
-        if (e.code === 'Digit1') {
-          setDifficulty('easy')
-          playBlip('click')
-          return
-        }
-        if (e.code === 'Digit2') {
-          setDifficulty('normal')
-          playBlip('click')
-          return
-        }
-        if (e.code === 'Digit3') {
-          setDifficulty('hard')
-          playBlip('click')
-          return
-        }
         if (e.code === 'KeyD') {
           setDailyMode((v) => !v)
           playBlip('toggle')
@@ -1205,7 +1135,7 @@ export default function PapayaGame() {
               }}
               transition={{ type: 'spring', stiffness: 200, damping: 18 }}
             >
-              <PapayaCharacter state={state} skin={skin} />
+              <PapayaCharacter state={state} />
             </motion.div>
 
             {/* floating notes while dancing */}
@@ -1278,46 +1208,6 @@ export default function PapayaGame() {
                     or the FREEZE button. Don't press too early! 🔥 A streak of 3+ freezes
                     gives a score multiplier.
                   </p>
-                  {/* difficulty selector */}
-                  <div className="flex w-full flex-col gap-1.5">
-                    <span className="text-center text-[10px] uppercase tracking-wider text-red-300/60">
-                      Difficulty
-                    </span>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {(Object.keys(DIFFICULTY_PRESETS) as Difficulty[]).map(
-                        (d) => {
-                          const active = difficulty === d
-                          const tone =
-                            d === 'easy'
-                              ? 'emerald'
-                              : d === 'hard'
-                                ? 'rose'
-                                : 'amber'
-                          return (
-                            <button
-                              key={d}
-                              type="button"
-                              onClick={() => {
-                                setDifficulty(d)
-                                playBlip('click')
-                              }}
-                              className={`rounded-lg border px-2 py-1.5 text-xs font-bold transition-all ${
-                                active
-                                  ? tone === 'emerald'
-                                    ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
-                                    : tone === 'rose'
-                                      ? 'border-rose-400/60 bg-rose-500/20 text-rose-200'
-                                      : 'border-amber-400/60 bg-amber-500/20 text-amber-200'
-                                  : 'border-red-900/40 bg-black/30 text-red-300/60 hover:bg-red-900/20'
-                              }`}
-                            >
-                              {DIFFICULTY_PRESETS[d].label}
-                            </button>
-                          )
-                        }
-                      )}
-                    </div>
-                  </div>
                   {/* daily challenge toggle */}
                   <button
                     type="button"
@@ -1337,36 +1227,6 @@ export default function PapayaGame() {
                       <Badge className="bg-cyan-500/30 text-cyan-100">on</Badge>
                     )}
                   </button>
-                  {/* skin selector */}
-                  <div className="flex w-full flex-col gap-1.5">
-                    <span className="text-center text-[10px] uppercase tracking-wider text-red-300/60">
-                      Character
-                    </span>
-                    <div className="flex w-full justify-center gap-1.5">
-                      {SKINS.map((s) => {
-                        const active = skin === s.id
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => {
-                              changeSkin(s.id)
-                              playBlip('click')
-                            }}
-                            title={s.label}
-                            aria-label={s.label}
-                            className={`flex h-9 w-9 items-center justify-center rounded-lg border text-lg transition-all ${
-                              active
-                                ? 'border-amber-400/60 bg-amber-500/20 ring-1 ring-amber-400/40'
-                                : 'border-red-900/40 bg-black/30 opacity-60 hover:opacity-100'
-                            }`}
-                          >
-                            {s.emoji}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
                   <div className="flex w-full gap-2">
                     <Input
                       value={playerName}
@@ -1760,9 +1620,6 @@ export default function PapayaGame() {
               <span className="flex items-center gap-1.5">
                 <Music2 className="h-3 w-3" /> Real-time music
               </span>
-              <span className="hidden items-center gap-1.5 sm:flex">
-                · Difficulty: {DIFFICULTY_PRESETS[difficulty].label}
-              </span>
             </span>
           </div>
           {/* keyboard shortcuts row */}
@@ -1788,12 +1645,6 @@ export default function PapayaGame() {
                 Enter
               </kbd>
               start
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
-                1/2/3
-              </kbd>
-              difficulty
             </span>
             <span className="flex items-center gap-1">
               <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
@@ -2166,7 +2017,7 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
     {
       icon: '⌨️',
       title: 'Hotkeys',
-      desc: '1/2/3 — difficulty, D — daily challenge, P/Esc — pause, Enter — start.',
+      desc: 'D — daily challenge, P/Esc — pause, Enter — start.',
     },
   ]
   return (

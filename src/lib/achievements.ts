@@ -13,7 +13,6 @@ export type AchievementStats = {
   round: number
   score: number
   perfectFreezes?: number
-  skinsUnlocked?: number
 }
 
 export type Achievement = {
@@ -108,13 +107,6 @@ export const ACHIEVEMENTS: Achievement[] = [
     desc: 'Score 2000 points',
     icon: '👑',
     check: (s) => s.score >= 2000,
-  },
-  {
-    id: 'skin-collector',
-    title: 'Trendsetter',
-    desc: 'Try all character skins',
-    icon: '🎨',
-    check: (s) => (s.skinsUnlocked ?? 0) >= 5,
   },
 ]
 

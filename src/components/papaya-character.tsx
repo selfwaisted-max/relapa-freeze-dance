@@ -20,23 +20,11 @@ export type CharState =
   | 'frozen'
   | 'gameover'
 
-export type Skin = 'papaya' | 'strawberry' | 'blueberry' | 'grape' | 'lime'
-
-export const SKINS: { id: Skin; label: string; emoji: string }[] = [
-  { id: 'papaya', label: 'Papaya', emoji: '🥭' },
-  { id: 'strawberry', label: 'Strawberry', emoji: '🍓' },
-  { id: 'blueberry', label: 'Blueberry', emoji: '🫐' },
-  { id: 'grape', label: 'Grape', emoji: '🍇' },
-  { id: 'lime', label: 'Lime', emoji: '🟢' },
-]
-
 export function PapayaCharacter({
   state,
-  skin = 'papaya',
   className = '',
 }: {
   state: CharState
-  skin?: Skin
   className?: string
 }) {
   const isDancing =
@@ -50,7 +38,6 @@ export function PapayaCharacter({
 
   const cls = [
     'papaya',
-    skin !== 'papaya' ? `skin-${skin}` : '',
     isDancing ? 'is-dancing' : 'is-idle',
     isFrozen ? 'is-frozen' : '',
     isSad ? 'is-sad' : '',

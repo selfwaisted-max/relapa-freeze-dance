@@ -142,6 +142,7 @@ export default function PapayaGame() {
   const [combo, setCombo] = useState(0) // consecutive freezes (resets on miss/early)
   const [bestCombo, setBestCombo] = useState(0) // best combo this run
   const [perfectFreezes, setPerfectFreezes] = useState(0) // ideal-timing freezes this run
+  const [bestFreezeTiming, setBestFreezeTiming] = useState(0) // highest freezeProgress this run (0..1)
   const [roundHistory, setRoundHistory] = useState<
     { timing: 'perfect' | 'good' | 'normal'; round: number }[]
   >([])
@@ -265,7 +266,6 @@ export default function PapayaGame() {
   // Persist skin choice + track tried skins for achievement
   const changeSkin = (s: Skin) => {
     setSkin(s)
-    playBlip('click')
     setTriedSkins((prev) => {
       if (prev.has(s)) return prev
       const next = new Set(prev)
@@ -484,7 +484,7 @@ export default function PapayaGame() {
 
   // ----- share score -----
   const shareScore = async () => {
-    const text = `🥭 Замри, Папайа! Счёт: ${score} (Замри: ${freezes}, В танце: ${danceSeconds.toFixed(1)}с, Макс. комбо: ${bestCombo})${lastSavedRank ? ` — #${lastSavedRank} в таблице!` : ''}`
+    const text = `🥭 Замри, Папайа! Счёт: ${score} (Замри: ${freezes}, В танце: ${danceSeconds.toFixed(1)}с, Макс. комбо: ${bestCombo}, Лучшая реакция: ${Math.round(bestFreezeTiming * 100)}%)${lastSavedRank ? ` — #${lastSavedRank} в таблице!` : ''}`
     try {
       if (navigator.share) {
         await navigator.share({ title: 'Замри, Папайа!', text })
@@ -570,6 +570,7 @@ export default function PapayaGame() {
     setCombo(newCombo)
     if (newCombo > bestCombo) setBestCombo(newCombo)
     if (isPerfect) setPerfectFreezes((p) => p + 1)
+    if (timing > bestFreezeTiming) setBestFreezeTiming(timing)
     setRoundHistory((h) => [
       ...h,
       {
@@ -682,6 +683,16 @@ export default function PapayaGame() {
     togglePauseRef.current = togglePause
   })
 
+  // ----- play a short UI blip (click/toggle/achievement) -----
+  const playBlip = (type: 'click' | 'toggle' | 'achievement' = 'click') => {
+    if (!soundOnRef.current) return
+    if (!engineRef.current) {
+      engineRef.current = new ChuckyEngine()
+      engineRef.current.init().catch(() => {})
+    }
+    engineRef.current?.blip(type)
+  }
+
   // ----- key handler (mounted once) -----
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -696,6 +707,29 @@ export default function PapayaGame() {
         if (s === 'paused') {
           e.preventDefault()
           togglePauseRef.current()
+          return
+        }
+      }
+      // Idle-state shortcuts: 1/2/3 = difficulty, D = daily, M = sound
+      if (stateRef.current === 'idle') {
+        if (e.code === 'Digit1') {
+          setDifficulty('easy')
+          playBlip('click')
+          return
+        }
+        if (e.code === 'Digit2') {
+          setDifficulty('normal')
+          playBlip('click')
+          return
+        }
+        if (e.code === 'Digit3') {
+          setDifficulty('hard')
+          playBlip('click')
+          return
+        }
+        if (e.code === 'KeyD') {
+          setDailyMode((v) => !v)
+          playBlip('toggle')
           return
         }
       }
@@ -734,6 +768,7 @@ export default function PapayaGame() {
     setCombo(0)
     setBestCombo(0)
     setPerfectFreezes(0)
+    setBestFreezeTiming(0)
     setRoundHistory([])
     setIsNewBest(false)
     setPausedFrom(null)
@@ -783,16 +818,6 @@ export default function PapayaGame() {
   const changeVolume = (v: number) => {
     setVolume(v)
     engineRef.current?.setVolume(v)
-  }
-
-  // ----- play a short UI blip (click/toggle/achievement) -----
-  const playBlip = (type: 'click' | 'toggle' | 'achievement' = 'click') => {
-    if (!soundOnRef.current) return
-    if (!engineRef.current) {
-      engineRef.current = new ChuckyEngine()
-      engineRef.current.init().catch(() => {})
-    }
-    engineRef.current?.blip(type)
   }
 
   const isPlaying = state === 'dancing' || state === 'freeze' || state === 'frozen'
@@ -1324,7 +1349,10 @@ export default function PapayaGame() {
                           <button
                             key={s.id}
                             type="button"
-                            onClick={() => changeSkin(s.id)}
+                            onClick={() => {
+                              changeSkin(s.id)
+                              playBlip('click')
+                            }}
                             title={s.label}
                             aria-label={s.label}
                             className={`flex h-9 w-9 items-center justify-center rounded-lg border text-lg transition-all ${
@@ -1466,6 +1494,24 @@ export default function PapayaGame() {
                       </span>
                     </div>
                   </div>
+
+                  {/* Best freeze timing bar — shown when freezes > 0 */}
+                  {freezes > 0 && (
+                    <div className="w-full rounded-lg bg-black/30 p-2.5">
+                      <div className="mb-1 flex items-center justify-between text-[9px] uppercase tracking-wider text-red-300/50">
+                        <span>Лучшая реакция</span>
+                        <span className="font-mono text-amber-300">
+                          {Math.round(bestFreezeTiming * 100)}%
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500"
+                          style={{ width: `${bestFreezeTiming * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Round history timeline — shows each freeze's timing */}
                   {roundHistory.length > 0 && (
@@ -1742,6 +1788,24 @@ export default function PapayaGame() {
                 Enter
               </kbd>
               старт
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+                1/2/3
+              </kbd>
+              сложность
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+                D
+              </kbd>
+              челлендж
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
+                M
+              </kbd>
+              звук
             </span>
           </div>
         </div>
@@ -2098,6 +2162,11 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
       icon: '🔥',
       title: 'Серии и множитель',
       desc: 'Каждые 3 замри подряд дают множитель очков (до ×3). Открывай достижения и побей рекорд!',
+    },
+    {
+      icon: '⌨️',
+      title: 'Горячие клавиши',
+      desc: '1/2/3 — сложность, D — ежедневный челлендж, M — звук, P/Esc — пауза, Enter — старт.',
     },
   ]
   return (

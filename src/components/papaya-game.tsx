@@ -107,6 +107,9 @@ export default function PapayaGame() {
   const [combo, setCombo] = useState(0) // consecutive freezes (resets on miss/early)
   const [bestCombo, setBestCombo] = useState(0) // best combo this run
   const [perfectFreezes, setPerfectFreezes] = useState(0) // ideal-timing freezes this run
+  const [roundHistory, setRoundHistory] = useState<
+    { timing: 'perfect' | 'good' | 'normal'; round: number }[]
+  >([])
   const [triedSkins, setTriedSkins] = useState<Set<Skin>>(new Set(['papaya']))
   const [personalBest, setPersonalBest] = useState<number | null>(null)
   const [isNewBest, setIsNewBest] = useState(false)
@@ -184,10 +187,45 @@ export default function PapayaGame() {
         const arr = JSON.parse(triedRaw) as string[]
         if (Array.isArray(arr)) setTriedSkins(new Set(arr as Skin[]))
       }
+      // Load persisted settings (difficulty, sound, volume)
+      const savedDiff = localStorage.getItem('papaya-difficulty')
+      if (savedDiff === 'easy' || savedDiff === 'normal' || savedDiff === 'hard') {
+        setDifficulty(savedDiff)
+      }
+      const savedSound = localStorage.getItem('papaya-sound')
+      if (savedSound === '0') setSoundOn(false)
+      const savedVol = localStorage.getItem('papaya-volume')
+      if (savedVol) {
+        const v = parseFloat(savedVol)
+        if (!Number.isNaN(v)) setVolume(v)
+      }
     } catch {
       /* ignore */
     }
   }, [])
+
+  // Persist settings whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('papaya-difficulty', difficulty)
+    } catch {
+      /* ignore */
+    }
+  }, [difficulty])
+  useEffect(() => {
+    try {
+      localStorage.setItem('papaya-sound', soundOn ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [soundOn])
+  useEffect(() => {
+    try {
+      localStorage.setItem('papaya-volume', String(volume))
+    } catch {
+      /* ignore */
+    }
+  }, [volume])
 
   // Persist skin choice + track tried skins for achievement
   const changeSkin = (s: Skin) => {
@@ -475,6 +513,13 @@ export default function PapayaGame() {
     setCombo(newCombo)
     if (newCombo > bestCombo) setBestCombo(newCombo)
     if (isPerfect) setPerfectFreezes((p) => p + 1)
+    setRoundHistory((h) => [
+      ...h,
+      {
+        timing: isPerfect ? 'perfect' : isGood ? 'good' : 'normal',
+        round: newRound - 1,
+      },
+    ])
     if (soundOnRef.current) engineRef.current?.sting('success')
     const timingLabel = isPerfect ? ' ИДЕАЛ!' : isGood ? ' Хорошо!' : ''
     const multLabel = newMult > 1 ? ` ×${newMult.toFixed(1)}` : ''
@@ -631,6 +676,7 @@ export default function PapayaGame() {
     setCombo(0)
     setBestCombo(0)
     setPerfectFreezes(0)
+    setRoundHistory([])
     setIsNewBest(false)
     setPausedFrom(null)
     setShared(false)
@@ -1038,7 +1084,15 @@ export default function PapayaGame() {
               key="papaya-svg"
               className="relative h-[300px] w-[270px] sm:h-[360px] sm:w-[320px]"
               initial={{ opacity: 0, y: 20, scale: 0.85 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
+              animate={{
+                opacity: 1,
+                y: 0,
+                scale: 1,
+                filter:
+                  combo >= 5
+                    ? 'drop-shadow(0 0 18px rgba(251,191,36,0.7))'
+                    : 'drop-shadow(0 0 0px transparent)',
+              }}
               transition={{ type: 'spring', stiffness: 200, damping: 18 }}
             >
               <PapayaCharacter state={state} skin={skin} />
@@ -1290,6 +1344,32 @@ export default function PapayaGame() {
                       </span>
                     </div>
                   </div>
+
+                  {/* Round history timeline — shows each freeze's timing */}
+                  {roundHistory.length > 0 && (
+                    <div className="w-full rounded-lg bg-black/30 p-2.5">
+                      <div className="mb-1.5 text-center text-[9px] uppercase tracking-wider text-red-300/50">
+                        История замри
+                      </div>
+                      <div className="flex flex-wrap items-center justify-center gap-1">
+                        {roundHistory.map((r, i) => (
+                          <span
+                            key={i}
+                            title={`Раунд ${r.round}: ${r.timing === 'perfect' ? 'ИДЕАЛ' : r.timing === 'good' ? 'Хорошо' : 'Норм'}`}
+                            className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold ring-1 ${
+                              r.timing === 'perfect'
+                                ? 'bg-amber-500/30 text-amber-200 ring-amber-400/50'
+                                : r.timing === 'good'
+                                  ? 'bg-emerald-500/20 text-emerald-200 ring-emerald-400/40'
+                                  : 'bg-slate-500/20 text-slate-300 ring-slate-400/30'
+                            }`}
+                          >
+                            {r.round}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Rank + personal best row */}
                   <div className="flex flex-wrap items-center justify-center gap-2 text-center">

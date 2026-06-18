@@ -369,6 +369,8 @@ export default function PapayaGame() {
         danceSeconds: Math.floor(danceSeconds),
         round,
         score: finalScore,
+        perfectFreezes,
+        skinsUnlocked: triedSkins.size,
       })
       // Update + persist lifetime session stats
       setSessionStats((prev) => {
@@ -628,6 +630,7 @@ export default function PapayaGame() {
     setConfetti(false)
     setCombo(0)
     setBestCombo(0)
+    setPerfectFreezes(0)
     setIsNewBest(false)
     setPausedFrom(null)
     setShared(false)
@@ -698,6 +701,20 @@ export default function PapayaGame() {
       <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-[#1a0608]/70 via-[#1a0608]/85 to-[#0a0203]" />
       {/* spotlight */}
       <div className="pointer-events-none fixed inset-0 spotlight-glow" />
+
+      {/* freeze flash — red pulse when music stops */}
+      <AnimatePresence>
+        {showFreezeOverlay && (
+          <motion.div
+            key="freeze-flash"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.5, 0.2] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="pointer-events-none fixed inset-0 z-30 bg-red-600/40 mix-blend-screen"
+          />
+        )}
+      </AnimatePresence>
 
       {/* countdown overlay (3-2-1 before dancing starts) */}
       <AnimatePresence>

@@ -109,3 +109,47 @@ Artifacts modified this round:
 - `src/components/papaya-character.tsx` — restructured SVG (split body into upper/lower halves, thicker outlined arms).
 - `src/components/papaya-game.tsx` — difficulty presets, sound toggle, tap-to-freeze button, confetti, shared freeze-action handler, footer/header polish.
 - `src/app/globals.css` — reworked floss keyframes (stronger amplitudes, back-arm peek-out, transform-origins updated for new body coordinates).
+
+---
+Task ID: 3 (webDevReview cron round 2)
+Agent: webDevReview (Z.ai Code, cron job 214383)
+Task: QA the game, then add more features and styling per mandatory requirements.
+
+Work Log:
+- Read worklog.md; confirmed server alive (HTTP 200, PPID=1 daemons) and prior features intact (floss dance v6, difficulty selector, sound toggle, tap-to-freeze, confetti).
+- QA via agent-browser: idle controls present, dancing animations running, gameover freeze-pose works, leaderboard persists. No runtime errors.
+- Added NEW FEATURES this round:
+  1. **Combo/streak system with multiplier** — consecutive freezes build a combo; every 3 freezes adds +0.5× to the freeze-score (capped at 3×). Score formula now: `freezes × 100 × multiplier + danceSeconds`. A combo chip (🔥 icon, "КОМБО ×1.5 · 3") animates into the header when combo ≥ 3. Resets implicitly on game over. Verified end-to-end: 3 freezes → ×1.5 multiplier → score 467 (3×100×1.5 + 17).
+  2. **Personal best tracking (localStorage)** — stores best score in `localStorage['papaya-best-score']`; loads on mount. On game over, if beaten, shows a "НОВЫЙ ЛИЧНЫЙ РЕКОРД!" callout (animated star badge) and highlights the matching leaderboard row with a cyan ring + star icon.
+  3. **Animated music equalizer** — 5 vertical amber bars in the top-right of the stage that pulse to different heights while music plays; dims when sound is off. Gives strong visual feedback that music is playing (especially useful with sound disabled).
+  4. **Floating dust motes** — 14 semi-transparent amber particles drifting in the stage background for atmospheric depth.
+  5. **Improved game-over screen** — replaced flat badges with a 2×2 stats grid (Счёт / Замри / В танце / Макс. комбо), each cell color-coded with an icon. Plus a rank badge, personal-best badge, and "НОВЫЙ ЛИЧНЫЙ РЕКОРД!" callout when applicable.
+- STYLING polish:
+  - Combo chip with gradient + Flame icon + animate-pulse.
+  - Stats grid cells with color-coded rings (amber/emerald/violet/orange) matching their semantic meaning.
+  - New personal-best callout with spring animation + star icon.
+  - Idle hint text updated to mention the combo/multiplier mechanic (🔥).
+  - Footer leaderboard formula updated to "Очки = замри × 100 × множитель + секунды".
+- Refactored: added `combo`, `bestCombo`, `personalBest`, `isNewBest` state + refs; `onSuccess` increments combo + shows multiplier in flash; `gameOver` computes final score with multiplier + persists personal best; `startGame` resets combo/bestCombo/isNewBest.
+- ESLint: 0 errors, 0 warnings (added eslint-disable for the localStorage mount-load, same pattern as leaderboard fetch).
+- QA verified via agent-browser:
+  - Idle: all controls present + combo hint text ✓
+  - Dancing: equalizer (5 bars) + dust motes + floss animation ✓
+  - Combo: 3 consecutive freezes → "КОМБО ×1.5 · 3" in header, score 467 (multiplier applied) ✓
+  - Gameover: 2×2 stats grid (Счёт/Замри/В танце/Макс. комбо) + "Лучший: 4" personal-best badge + SVG frozen in pose ✓
+  - VLM review (glm-4.6v): confirmed equalizer, dust motes, 2×2 stats grid, personal-best badge all render cleanly (9/10 polish). Noted idle-screen controls were misread by VLM due to screenshot timing (verified present via snapshot).
+
+Stage Summary:
+- 5 new features added: combo multiplier system, personal best (localStorage), music equalizer, dust motes, improved stats grid on game-over.
+- All features QA-verified; combo math confirmed correct (3 freezes × 100 × 1.5 + 17 = 467).
+- ESLint clean; server stable (HTTP 200, PPID=1 daemons).
+
+Unresolved issues / risks:
+- The floss animation still has one "neutral zero-crossing" frame per cycle (minor, carried from round 1).
+- Procedural music remains synthesized (copyright-safe).
+- Web Audio requires a real user gesture (agent-browser `eval` clicks don't qualify); real clicks work fine — this is expected browser behavior, not a bug.
+- Next steps could add: a brief tutorial overlay on first play, sound-effect volume slider, achievements/milestones system, or a "daily challenge" mode.
+
+Artifacts modified this round:
+- `src/components/papaya-game.tsx` — combo system, personal best, equalizer, dust motes, stats grid, new-best callout, leaderboard personal-best highlight.
+- (no other files changed; CSS keyframes for floss unchanged from round 1).

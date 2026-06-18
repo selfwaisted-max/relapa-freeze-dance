@@ -25,6 +25,9 @@ import {
   Volume2,
   VolumeX,
   PartyPopper,
+  Flame,
+  Star,
+  TrendingUp,
 } from 'lucide-react'
 
 type GameState = 'idle' | 'dancing' | 'freeze' | 'frozen' | 'gameover'
@@ -79,6 +82,10 @@ export default function PapayaGame() {
   const [soundOn, setSoundOn] = useState(true)
   const [difficulty, setDifficulty] = useState<Difficulty>('normal')
   const [confetti, setConfetti] = useState(false)
+  const [combo, setCombo] = useState(0) // consecutive freezes (resets on miss/early)
+  const [bestCombo, setBestCombo] = useState(0) // best combo this run
+  const [personalBest, setPersonalBest] = useState<number | null>(null)
+  const [isNewBest, setIsNewBest] = useState(false)
 
   const engineRef = useRef<ChuckyEngine | null>(null)
   const musicStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -92,6 +99,7 @@ export default function PapayaGame() {
   const roundRef = useRef(1)
   const difficultyRef = useRef<Difficulty>('normal')
   const soundOnRef = useRef<boolean>(true)
+  const comboRef = useRef(0)
 
   // keep refs in sync for use inside timers / listeners
   useEffect(() => {
@@ -106,8 +114,29 @@ export default function PapayaGame() {
   useEffect(() => {
     soundOnRef.current = soundOn
   }, [soundOn])
+  useEffect(() => {
+    comboRef.current = combo
+  }, [combo])
 
-  const score = freezes * 100 + Math.floor(danceSeconds)
+  // Load personal best from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('papaya-best-score')
+      if (stored) {
+        const n = parseInt(stored, 10)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (!Number.isNaN(n)) setPersonalBest(n)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  // Combo multiplier: every 3 consecutive freezes adds +0.5x (capped at 3x)
+  const comboMultiplier = Math.min(3, 1 + Math.floor(combo / 3) * 0.5)
+  const score = Math.floor(
+    freezes * 100 * comboMultiplier + Math.floor(danceSeconds)
+  )
 
   // ----- Leaderboard -----
   const fetchLeaderboard = useCallback(async () => {
@@ -177,11 +206,26 @@ export default function PapayaGame() {
     setFailReason(reason)
     setState('gameover')
 
+    // compute final score with combo multiplier (combo frozen at moment of fail)
+    const finalMult = Math.min(3, 1 + Math.floor(combo / 3) * 0.5)
+    const finalScore = Math.floor(freezes * 100 * finalMult + Math.floor(danceSeconds))
+
     // save score once
     if (!savedThisRun) {
       setSavedThisRun(true)
       const name = playerName.trim() || 'Аноним'
-      const finalScore = freezes * 100 + Math.floor(danceSeconds)
+      // Check + persist personal best (localStorage)
+      try {
+        const stored = localStorage.getItem('papaya-best-score')
+        const prev = stored ? parseInt(stored, 10) : 0
+        if (finalScore > prev) {
+          localStorage.setItem('papaya-best-score', String(finalScore))
+          setPersonalBest(finalScore)
+          setIsNewBest(true)
+        }
+      } catch {
+        /* ignore */
+      }
       try {
         const res = await fetch('/api/leaderboard', {
           method: 'POST',
@@ -270,10 +314,15 @@ export default function PapayaGame() {
     setState('frozen')
     const newFreezes = freezes + 1
     const newRound = round + 1
+    const newCombo = combo + 1
+    const newMult = Math.min(3, 1 + Math.floor(newCombo / 3) * 0.5)
     setFreezes(newFreezes)
     setRound(newRound)
+    setCombo(newCombo)
+    if (newCombo > bestCombo) setBestCombo(newCombo)
     if (soundOnRef.current) engineRef.current?.sting('success')
-    showFlash(`Замри! +${newRound - 1} 👍`)
+    const multLabel = newMult > 1 ? ` ×${newMult.toFixed(1)}` : ''
+    showFlash(`Замри! +${newRound - 1}${multLabel} 🔥${newCombo}`)
 
     // Celebrate milestones: every 5 freezes triggers confetti
     if (newFreezes > 0 && newFreezes % 5 === 0) {
@@ -327,6 +376,9 @@ export default function PapayaGame() {
     setLastSavedRank(null)
     setFreezeProgress(1)
     setConfetti(false)
+    setCombo(0)
+    setBestCombo(0)
+    setIsNewBest(false)
     setState('dancing')
     if (soundOnRef.current) await engineRef.current.start()
     startDanceTimer()
@@ -412,6 +464,27 @@ export default function PapayaGame() {
               value={String(score)}
               tone="rose"
             />
+            {/* Combo indicator — only shows when combo >= 3 (multiplier active) */}
+            <AnimatePresence>
+              {combo >= 3 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.6, x: -10 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.6, x: -10 }}
+                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-orange-500/30 to-red-700/20 px-3 py-1.5 ring-1 ring-orange-400/50"
+                >
+                  <Flame className="h-4 w-4 animate-pulse text-orange-300" />
+                  <div className="flex flex-col leading-none">
+                    <span className="text-[9px] uppercase tracking-wider text-orange-200/70">
+                      Комбо
+                    </span>
+                    <span className="font-mono text-sm font-black text-orange-200">
+                      ×{comboMultiplier.toFixed(1)} · {combo}
+                    </span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <button
               type="button"
               onClick={toggleSound}
@@ -436,6 +509,24 @@ export default function PapayaGame() {
           {/* stage curtains top */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-red-950/80 to-transparent" />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/70 to-transparent" />
+
+          {/* floating dust motes for atmosphere */}
+          <DustMotes />
+
+          {/* music equalizer (top-right of stage, shown while music plays) */}
+          <AnimatePresence>
+            {(dancing || (soundOn && isPlaying)) && (
+              <motion.div
+                key="eq"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="absolute right-4 top-4 z-10"
+              >
+                <Equalizer active={dancing} muted={!soundOn} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* status banner */}
           <div className="relative z-10 mb-2 flex h-7 items-center justify-center">
@@ -581,11 +672,12 @@ export default function PapayaGame() {
                   className="flex w-full flex-col items-center gap-3"
                 >
                   <p className="text-center text-xs text-red-200/80">
-                    Введи имя и начинай. Когда музыка резко стихнет — жми{' '}
+                    Когда музыка резко стихнет — жми{' '}
                     <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
                       ПРОБЕЛ
-                    </kbd>
-                    , чтобы замереть. Не жми слишком рано!
+                    </kbd>{' '}
+                    или кнопку ЗАМРИ. Не жми слишком рано! 🔥 Серия из 3+ замри
+                    даёт множитель очков.
                   </p>
                   {/* difficulty selector */}
                   <div className="flex w-full flex-col gap-1.5">
@@ -689,19 +781,78 @@ export default function PapayaGame() {
                   exit={{ opacity: 0, y: -10 }}
                   className="flex w-full flex-col items-center gap-3"
                 >
+                  {/* New personal best callout */}
+                  <AnimatePresence>
+                    {isNewBest && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.6, rotate: -6 }}
+                        animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500/30 to-orange-600/30 px-4 py-1.5 text-sm font-black text-amber-200 ring-2 ring-amber-400/60"
+                      >
+                        <Star className="h-4 w-4 animate-pulse fill-amber-300 text-amber-300" />
+                        НОВЫЙ ЛИЧНЫЙ РЕКОРД!
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Stats breakdown grid */}
+                  <div className="grid w-full grid-cols-2 gap-2">
+                    <div className="flex flex-col items-center rounded-lg bg-amber-500/10 px-3 py-2 ring-1 ring-amber-400/30">
+                      <Trophy className="mb-1 h-4 w-4 text-amber-400" />
+                      <span className="text-[9px] uppercase tracking-wider text-amber-200/60">
+                        Счёт
+                      </span>
+                      <span className="font-mono text-lg font-black text-amber-200">
+                        {score}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center rounded-lg bg-emerald-500/10 px-3 py-2 ring-1 ring-emerald-400/30">
+                      <Hand className="mb-1 h-4 w-4 text-emerald-400" />
+                      <span className="text-[9px] uppercase tracking-wider text-emerald-200/60">
+                        Замри
+                      </span>
+                      <span className="font-mono text-lg font-black text-emerald-200">
+                        {freezes}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center rounded-lg bg-violet-500/10 px-3 py-2 ring-1 ring-violet-400/30">
+                      <Timer className="mb-1 h-4 w-4 text-violet-400" />
+                      <span className="text-[9px] uppercase tracking-wider text-violet-200/60">
+                        В танце
+                      </span>
+                      <span className="font-mono text-lg font-black text-violet-200">
+                        {danceSeconds.toFixed(1)}с
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center rounded-lg bg-orange-500/10 px-3 py-2 ring-1 ring-orange-400/30">
+                      <Flame className="mb-1 h-4 w-4 text-orange-400" />
+                      <span className="text-[9px] uppercase tracking-wider text-orange-200/60">
+                        Макс. комбо
+                      </span>
+                      <span className="font-mono text-lg font-black text-orange-200">
+                        {bestCombo}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Rank + personal best row */}
                   <div className="flex flex-wrap items-center justify-center gap-2 text-center">
-                    <Badge className="bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40">
-                      Счёт: {score}
-                    </Badge>
-                    <Badge className="bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/40">
-                      Замри: {freezes}
-                    </Badge>
-                    <Badge className="bg-violet-500/20 text-violet-200 ring-1 ring-violet-400/40">
-                      В танце: {danceSeconds.toFixed(1)}с
-                    </Badge>
                     {lastSavedRank && lastSavedRank <= 20 && (
                       <Badge className="bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/40">
                         <Crown className="mr-1 h-3 w-3" />#{lastSavedRank} в таблице
+                      </Badge>
+                    )}
+                    {personalBest !== null && (
+                      <Badge
+                        className={`ring-1 ${
+                          isNewBest
+                            ? 'bg-amber-500/20 text-amber-200 ring-amber-400/40'
+                            : 'bg-slate-500/15 text-slate-300 ring-slate-400/30'
+                        }`}
+                      >
+                        <TrendingUp className="mr-1 h-3 w-3" />
+                        {isNewBest ? 'Рекорд побит!' : `Лучший: ${personalBest}`}
                       </Badge>
                     )}
                   </div>
@@ -746,52 +897,59 @@ export default function PapayaGame() {
                   </div>
                 ) : (
                   <ul className="flex flex-col gap-1">
-                    {leaderboard.map((s, i) => (
-                      <li
-                        key={s.id}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                          i === 0
-                            ? 'bg-amber-500/15 ring-1 ring-amber-400/30'
-                            : i === 1
-                              ? 'bg-slate-300/10'
-                              : i === 2
-                                ? 'bg-orange-700/15'
-                                : 'hover:bg-white/5'
-                        }`}
-                      >
-                        <span
-                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                    {leaderboard.map((s, i) => {
+                      const isMyBest =
+                        personalBest !== null && s.score === personalBest
+                      return (
+                        <li
+                          key={s.id}
+                          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                             i === 0
-                              ? 'bg-amber-400 text-amber-950'
+                              ? 'bg-amber-500/15 ring-1 ring-amber-400/30'
                               : i === 1
-                                ? 'bg-slate-300 text-slate-900'
+                                ? 'bg-slate-300/10'
                                 : i === 2
-                                  ? 'bg-orange-600 text-orange-50'
-                                  : 'bg-white/10 text-red-200/70'
-                          }`}
+                                  ? 'bg-orange-700/15'
+                                  : 'hover:bg-white/5'
+                          } ${isMyBest ? 'ring-1 ring-cyan-400/50' : ''}`}
                         >
-                          {i + 1}
-                        </span>
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate font-semibold text-red-100">
-                            {s.playerName}
+                          <span
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                              i === 0
+                                ? 'bg-amber-400 text-amber-950'
+                                : i === 1
+                                  ? 'bg-slate-300 text-slate-900'
+                                  : i === 2
+                                    ? 'bg-orange-600 text-orange-50'
+                                    : 'bg-white/10 text-red-200/70'
+                            }`}
+                          >
+                            {i + 1}
                           </span>
-                          <span className="text-[10px] text-red-300/60">
-                            {s.freezes} замри · {s.danceSeconds}с
+                          <div className="flex min-w-0 flex-1 flex-col">
+                            <span className="flex items-center gap-1 truncate font-semibold text-red-100">
+                              {s.playerName}
+                              {isMyBest && (
+                                <Star className="h-3 w-3 shrink-0 fill-cyan-300 text-cyan-300" />
+                              )}
+                            </span>
+                            <span className="text-[10px] text-red-300/60">
+                              {s.freezes} замри · {s.danceSeconds}с
+                            </span>
+                          </div>
+                          <span className="shrink-0 font-mono text-sm font-bold text-amber-300">
+                            {s.score}
                           </span>
-                        </div>
-                        <span className="shrink-0 font-mono text-sm font-bold text-amber-300">
-                          {s.score}
-                        </span>
-                      </li>
-                    ))}
+                        </li>
+                      )
+                    })}
                   </ul>
                 )}
               </div>
             </ScrollArea>
             <Separator className="bg-red-900/30" />
             <div className="px-4 py-2 text-center text-[10px] text-red-300/50">
-              Очки = замри × 100 + секунды в танце
+              Очки = замри × 100 × множитель + секунды
             </div>
           </Card>
         </aside>
@@ -953,5 +1111,65 @@ function ConfettiBurst() {
         )
       })}
     </motion.div>
+  )
+}
+
+/* Animated music equalizer — visual feedback that music is playing.
+   Bars pulse via CSS; when `active` is false they sit low. */
+function Equalizer({ active, muted }: { active: boolean; muted: boolean }) {
+  const bars = [0, 1, 2, 3, 4]
+  return (
+    <div
+      className={`flex h-8 items-end gap-0.5 rounded-md bg-black/40 px-1.5 py-1 ring-1 ring-red-900/40 ${
+        muted ? 'opacity-50' : ''
+      }`}
+      title={muted ? 'Звук выключен' : 'Музыка играет'}
+      aria-hidden="true"
+    >
+      {bars.map((b) => (
+        <motion.span
+          key={b}
+          className="w-1 rounded-full bg-gradient-to-t from-amber-600 to-amber-300"
+          animate={
+            active
+              ? { height: [6, 20, 10, 24, 8] }
+              : { height: 4 }
+          }
+          transition={{
+            duration: 0.5 + b * 0.08,
+            repeat: Infinity,
+            repeatType: 'mirror',
+            ease: 'easeInOut',
+            delay: b * 0.05,
+          }}
+          style={{ height: 4 }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/* Floating dust motes for atmospheric depth in the stage. */
+function DustMotes() {
+  const motes = Array.from({ length: 14 })
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {motes.map((_, i) => {
+        const left = Math.random() * 100
+        const top = 10 + Math.random() * 80
+        const size = 1 + Math.random() * 2.5
+        const dur = 6 + Math.random() * 6
+        const delay = Math.random() * 6
+        return (
+          <motion.span
+            key={i}
+            className="absolute rounded-full bg-amber-200/30"
+            style={{ left: `${left}%`, top: `${top}%`, width: size, height: size }}
+            animate={{ y: [0, -24, 0], x: [0, 8, 0], opacity: [0, 0.6, 0] }}
+            transition={{ duration: dur, delay, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        )
+      })}
+    </div>
   )
 }

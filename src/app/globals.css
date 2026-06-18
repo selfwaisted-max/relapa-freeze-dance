@@ -173,16 +173,16 @@
   will-change: transform;
 }
 .papaya .body-group {
-  transform-origin: 150px 212px;
+  transform-origin: 150px 160px;
 }
 .papaya .hips-group {
-  transform-origin: 150px 262px;
+  transform-origin: 150px 300px;
 }
 .papaya .arm-back {
-  transform-origin: 77px 198px;
+  transform-origin: 76px 196px;
 }
 .papaya .arm-front {
-  transform-origin: 223px 198px;
+  transform-origin: 224px 196px;
 }
 
 /* ---- face switching ---- */
@@ -244,29 +244,30 @@
 
 /* ===== Keyframes ===== */
 
-/* Shoulders sway side to side */
+/* Shoulders sway side to side (upper body half) — strong lean for clear read */
 @keyframes papaya-floss-body {
   0% {
-    transform: translateX(-5px) rotate(-3deg);
+    transform: translateX(-11px) rotate(-11deg);
   }
   50% {
-    transform: translateX(5px) rotate(3deg);
+    transform: translateX(11px) rotate(11deg);
   }
   100% {
-    transform: translateX(-5px) rotate(-3deg);
+    transform: translateX(-11px) rotate(-11deg);
   }
 }
 
-/* Hips sway OPPOSITE to shoulders — the signature floss motion */
+/* Hips sway OPPOSITE to shoulders — moves the whole lower silhouette,
+   so the counter-motion is unmistakable. */
 @keyframes papaya-floss-hips {
   0% {
-    transform: translateX(6px) rotate(2deg);
+    transform: translateX(22px) rotate(6deg);
   }
   50% {
-    transform: translateX(-6px) rotate(-2deg);
+    transform: translateX(-22px) rotate(-6deg);
   }
   100% {
-    transform: translateX(6px) rotate(2deg);
+    transform: translateX(22px) rotate(6deg);
   }
 }
 
@@ -280,41 +281,56 @@
   }
 }
 
-/* Back arm (left) swings right across the body (behind torso) and out left */
+/*
+ * Back arm (left shoulder, drawn BEHIND body).
+ * At every moment the back arm is on the OPPOSITE side from the front arm,
+ * crossing behind the torso. Strong offsets so a sliver always peeks out
+ * past the torso edge and the arm never fully disappears.
+ */
 @keyframes papaya-floss-arm-back {
   0% {
-    transform: translate(0, 0) rotate(-20deg);
+    /* shoulders lean left -> back arm crosses far to the RIGHT (behind torso) */
+    transform: translate(120px, -14px) rotate(42deg);
   }
   25% {
-    transform: translate(118px, -8px) rotate(28deg);
+    /* mid-swing — keep a clear sliver peeking on the right edge */
+    transform: translate(78px, 10px) rotate(16deg);
   }
   50% {
-    transform: translate(96px, 8px) rotate(6deg);
+    /* shoulders lean right -> back arm swings out to the LEFT (behind torso) */
+    transform: translate(-72px, -12px) rotate(-52deg);
   }
   75% {
-    transform: translate(-40px, 0) rotate(-42deg);
+    /* mid-swing — keep a clear sliver peeking on the left edge */
+    transform: translate(-26px, 6px) rotate(-22deg);
   }
   100% {
-    transform: translate(0, 0) rotate(-20deg);
+    transform: translate(120px, -14px) rotate(42deg);
   }
 }
 
-/* Front arm (right) swings left across the body (in front of torso) and out right */
+/*
+ * Front arm (right shoulder, drawn IN FRONT of body).
+ * Mirror of back arm: crosses to the LEFT (in front of torso) when
+ * shoulders lean left, and to the RIGHT (in front) when shoulders lean right.
+ */
 @keyframes papaya-floss-arm-front {
   0% {
-    transform: translate(0, 0) rotate(20deg);
+    /* shoulders lean left -> front arm crosses far to the LEFT (in front) */
+    transform: translate(-120px, -14px) rotate(-42deg);
   }
   25% {
-    transform: translate(-118px, -8px) rotate(-28deg);
+    transform: translate(-78px, 10px) rotate(-16deg);
   }
   50% {
-    transform: translate(-96px, 8px) rotate(-6deg);
+    /* shoulders lean right -> front arm swings out to the RIGHT (in front) */
+    transform: translate(72px, -12px) rotate(52deg);
   }
   75% {
-    transform: translate(40px, 0) rotate(42deg);
+    transform: translate(26px, 6px) rotate(22deg);
   }
   100% {
-    transform: translate(0, 0) rotate(20deg);
+    transform: translate(-120px, -14px) rotate(-42deg);
   }
 }
 

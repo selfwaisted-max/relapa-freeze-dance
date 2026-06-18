@@ -22,6 +22,9 @@ import {
   Zap,
   AlertTriangle,
   Crown,
+  Volume2,
+  VolumeX,
+  PartyPopper,
 } from 'lucide-react'
 
 type GameState = 'idle' | 'dancing' | 'freeze' | 'frozen' | 'gameover'
@@ -37,18 +40,28 @@ type ScoreEntry = {
 }
 
 type FailReason = 'early' | 'late' | null
+type Difficulty = 'easy' | 'normal' | 'hard'
 
-const FREEZE_WINDOW_BY_ROUND: Record<number, number> = {}
-for (let r = 1; r <= 2; r++) FREEZE_WINDOW_BY_ROUND[r] = 1500
-for (let r = 3; r <= 4; r++) FREEZE_WINDOW_BY_ROUND[r] = 1350
-for (let r = 5; r <= 6; r++) FREEZE_WINDOW_BY_ROUND[r] = 1150
-for (let r = 7; r <= 9; r++) FREEZE_WINDOW_BY_ROUND[r] = 950
-const getFreezeWindow = (round: number) =>
-  FREEZE_WINDOW_BY_ROUND[round] ?? 850
+// Difficulty presets: freeze reaction window (ms) per round-tier + music duration range.
+const DIFFICULTY_PRESETS: Record<
+  Difficulty,
+  { baseWindow: number; minWindow: number; musicMin: number; musicMax: number; label: string }
+> = {
+  easy: { baseWindow: 1900, minWindow: 1200, musicMin: 4000, musicMax: 7500, label: 'Лёгкий' },
+  normal: { baseWindow: 1500, minWindow: 850, musicMin: 3000, musicMax: 6500, label: 'Обычный' },
+  hard: { baseWindow: 1100, minWindow: 600, musicMin: 2500, musicMax: 5500, label: 'Сложный' },
+}
 
-function randMusicDuration() {
-  // music plays between 3.0s and 6.5s before stopping
-  return 3000 + Math.random() * 3500
+// Reaction window shrinks with rounds, clamped to the difficulty's min.
+function getFreezeWindow(round: number, diff: Difficulty) {
+  const { baseWindow, minWindow } = DIFFICULTY_PRESETS[diff]
+  const shrink = Math.floor((round - 1) / 2) * 150
+  return Math.max(minWindow, baseWindow - shrink)
+}
+
+function randMusicDuration(diff: Difficulty) {
+  const { musicMin, musicMax } = DIFFICULTY_PRESETS[diff]
+  return musicMin + Math.random() * (musicMax - musicMin)
 }
 
 export default function PapayaGame() {
@@ -63,6 +76,9 @@ export default function PapayaGame() {
   const [lastSavedRank, setLastSavedRank] = useState<number | null>(null)
   const [savedThisRun, setSavedThisRun] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
+  const [soundOn, setSoundOn] = useState(true)
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal')
+  const [confetti, setConfetti] = useState(false)
 
   const engineRef = useRef<ChuckyEngine | null>(null)
   const musicStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -74,14 +90,22 @@ export default function PapayaGame() {
   const freezeWindowRef = useRef<number>(1500)
   const stateRef = useRef<GameState>('idle')
   const roundRef = useRef(1)
+  const difficultyRef = useRef<Difficulty>('normal')
+  const soundOnRef = useRef<boolean>(true)
 
-  // keep state ref in sync for the key handler
+  // keep refs in sync for use inside timers / listeners
   useEffect(() => {
     stateRef.current = state
   }, [state])
   useEffect(() => {
     roundRef.current = round
   }, [round])
+  useEffect(() => {
+    difficultyRef.current = difficulty
+  }, [difficulty])
+  useEffect(() => {
+    soundOnRef.current = soundOn
+  }, [soundOn])
 
   const score = freezes * 100 + Math.floor(danceSeconds)
 
@@ -149,7 +173,7 @@ export default function PapayaGame() {
     if (freezeAnimRef.current) cancelAnimationFrame(freezeAnimRef.current)
     stopDanceTimer()
     engineRef.current?.stop()
-    engineRef.current?.sting('fail')
+    if (soundOnRef.current) engineRef.current?.sting('fail')
     setFailReason(reason)
     setState('gameover')
 
@@ -179,7 +203,13 @@ export default function PapayaGame() {
           const idx = (data.scores as ScoreEntry[]).findIndex(
             (s) => s.score === finalScore && s.playerName === name
           )
-          setLastSavedRank(idx >= 0 ? idx + 1 : null)
+          const rank = idx >= 0 ? idx + 1 : null
+          setLastSavedRank(rank)
+          // Top-3 finish triggers a celebratory confetti burst
+          if (rank !== null && rank <= 3) {
+            setConfetti(true)
+            setTimeout(() => setConfetti(false), 3200)
+          }
         }
       } catch {
         /* ignore */
@@ -187,11 +217,24 @@ export default function PapayaGame() {
     }
   }
 
+  // Shared "freeze action" — used by both the SPACE key handler and the
+  // mobile tap-to-freeze button so behaviour is identical.
+  const handleFreezeAction = () => {
+    const s = stateRef.current
+    if (s === 'dancing') {
+      // pressed while music still playing => too early
+      gameOverRef.current('early')
+    } else if (s === 'freeze') {
+      onSuccessRef.current()
+    }
+    // ignore in other states
+  }
+
   const triggerFreeze = () => {
     setState('freeze')
     stopDanceTimer()
     engineRef.current?.stop()
-    const win = getFreezeWindow(roundRef.current)
+    const win = getFreezeWindow(roundRef.current, difficultyRef.current)
     freezeWindowRef.current = win
     freezeStartRef.current = performance.now()
     setFreezeProgress(1)
@@ -218,7 +261,7 @@ export default function PapayaGame() {
     if (musicStopTimer.current) clearTimeout(musicStopTimer.current)
     musicStopTimer.current = setTimeout(() => {
       triggerFreezeRef.current()
-    }, randMusicDuration())
+    }, randMusicDuration(difficultyRef.current))
   }
 
   const onSuccess = () => {
@@ -229,12 +272,18 @@ export default function PapayaGame() {
     const newRound = round + 1
     setFreezes(newFreezes)
     setRound(newRound)
-    engineRef.current?.sting('success')
+    if (soundOnRef.current) engineRef.current?.sting('success')
     showFlash(`Замри! +${newRound - 1} 👍`)
+
+    // Celebrate milestones: every 5 freezes triggers confetti
+    if (newFreezes > 0 && newFreezes % 5 === 0) {
+      setConfetti(true)
+      setTimeout(() => setConfetti(false), 2600)
+    }
 
     frozenResumeTimer.current = setTimeout(() => {
       setState('dancing')
-      engineRef.current?.start()
+      if (soundOnRef.current) engineRef.current?.start()
       startDanceTimer()
       scheduleMusicStopRef.current()
     }, 1300)
@@ -249,19 +298,18 @@ export default function PapayaGame() {
     onSuccessRef.current = onSuccess
   })
 
+  // keep the freeze-action ref in sync too
+  const handleFreezeActionRef = useRef(handleFreezeAction)
+  useEffect(() => {
+    handleFreezeActionRef.current = handleFreezeAction
+  })
+
   // ----- key handler (mounted once) -----
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return
       e.preventDefault()
-      const s = stateRef.current
-      if (s === 'dancing') {
-        // pressed space while music still playing => too early
-        gameOverRef.current('early')
-      } else if (s === 'freeze') {
-        onSuccessRef.current()
-      }
-      // ignore in other states
+      handleFreezeActionRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -278,10 +326,26 @@ export default function PapayaGame() {
     setSavedThisRun(false)
     setLastSavedRank(null)
     setFreezeProgress(1)
+    setConfetti(false)
     setState('dancing')
-    await engineRef.current.start()
+    if (soundOnRef.current) await engineRef.current.start()
     startDanceTimer()
     scheduleMusicStop()
+  }
+
+  // ----- toggle sound (live) -----
+  const toggleSound = async () => {
+    const next = !soundOn
+    setSoundOn(next)
+    if (!next) {
+      // turning sound off -> stop current music immediately
+      engineRef.current?.stop()
+    } else if (state === 'dancing') {
+      // turning sound back on mid-dance -> resume music
+      if (!engineRef.current) engineRef.current = new ChuckyEngine()
+      await engineRef.current.init()
+      await engineRef.current.start()
+    }
   }
 
   const isPlaying = state === 'dancing' || state === 'freeze' || state === 'frozen'
@@ -298,6 +362,11 @@ export default function PapayaGame() {
       <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-[#1a0608]/70 via-[#1a0608]/85 to-[#0a0203]" />
       {/* spotlight */}
       <div className="pointer-events-none fixed inset-0 spotlight-glow" />
+
+      {/* confetti celebration overlay */}
+      <AnimatePresence>
+        {confetti && <ConfettiBurst />}
+      </AnimatePresence>
 
       {/* ===== HEADER ===== */}
       <header className="relative z-10 border-b border-red-900/40 bg-black/40 backdrop-blur-sm">
@@ -317,7 +386,7 @@ export default function PapayaGame() {
           </div>
 
           {/* stat cluster */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <StatChip
               icon={<Timer className="h-4 w-4" />}
               label="Секунд в танце"
@@ -343,6 +412,19 @@ export default function PapayaGame() {
               value={String(score)}
               tone="rose"
             />
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label={soundOn ? 'Выключить звук' : 'Включить звук'}
+              title={soundOn ? 'Выключить звук' : 'Включить звук'}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-900/50 bg-black/40 text-red-200 transition-colors hover:bg-red-900/40 hover:text-white"
+            >
+              {soundOn ? (
+                <Volume2 className="h-4 w-4" />
+              ) : (
+                <VolumeX className="h-4 w-4 text-red-400/60" />
+              )}
+            </button>
           </div>
         </div>
       </header>
@@ -505,6 +587,43 @@ export default function PapayaGame() {
                     </kbd>
                     , чтобы замереть. Не жми слишком рано!
                   </p>
+                  {/* difficulty selector */}
+                  <div className="flex w-full flex-col gap-1.5">
+                    <span className="text-center text-[10px] uppercase tracking-wider text-red-300/60">
+                      Сложность
+                    </span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {(Object.keys(DIFFICULTY_PRESETS) as Difficulty[]).map(
+                        (d) => {
+                          const active = difficulty === d
+                          const tone =
+                            d === 'easy'
+                              ? 'emerald'
+                              : d === 'hard'
+                                ? 'rose'
+                                : 'amber'
+                          return (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => setDifficulty(d)}
+                              className={`rounded-lg border px-2 py-1.5 text-xs font-bold transition-all ${
+                                active
+                                  ? tone === 'emerald'
+                                    ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
+                                    : tone === 'rose'
+                                      ? 'border-rose-400/60 bg-rose-500/20 text-rose-200'
+                                      : 'border-amber-400/60 bg-amber-500/20 text-amber-200'
+                                  : 'border-red-900/40 bg-black/30 text-red-300/60 hover:bg-red-900/20'
+                              }`}
+                            >
+                              {DIFFICULTY_PRESETS[d].label}
+                            </button>
+                          )
+                        }
+                      )}
+                    </div>
+                  </div>
                   <div className="flex w-full gap-2">
                     <Input
                       value={playerName}
@@ -532,12 +651,33 @@ export default function PapayaGame() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex items-center gap-2 text-center text-xs text-red-200/70"
+                  className="flex w-full flex-col items-center gap-3"
                 >
-                  <kbd className="rounded bg-white/10 px-2 py-1 font-mono text-red-100">
-                    ПРОБЕЛ
-                  </kbd>
-                  = замереть, когда музыка стихнет
+                  <div className="flex items-center gap-2 text-center text-xs text-red-200/70">
+                    <kbd className="rounded bg-white/10 px-2 py-1 font-mono text-red-100">
+                      ПРОБЕЛ
+                    </kbd>
+                    = замереть, когда музыка стихнет
+                  </div>
+                  {/* big tap-to-freeze button — primary control on touch devices */}
+                  <button
+                    type="button"
+                    onPointerDown={(e) => {
+                      e.preventDefault()
+                      handleFreezeAction()
+                    }}
+                    className={`flex h-16 w-full select-none items-center justify-center gap-2 rounded-xl border-2 text-base font-black tracking-wide transition-all active:scale-95 ${
+                      showFreezeOverlay
+                        ? 'animate-pulse border-red-400 bg-red-600/40 text-white shadow-[0_0_30px_-5px_rgba(248,113,113,0.7)]'
+                        : dancing
+                          ? 'border-red-800/50 bg-black/40 text-red-200 hover:border-red-500/60 hover:bg-red-900/30'
+                          : 'border-slate-600/50 bg-black/40 text-slate-300'
+                    }`}
+                    aria-label="Замереть"
+                  >
+                    <Hand className="h-5 w-5" />
+                    ЗАМРИ
+                  </button>
                 </motion.div>
               )}
 
@@ -662,10 +802,19 @@ export default function PapayaGame() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-3 text-center text-xs text-red-300/60 sm:flex-row sm:text-left">
           <span>
             🥭 Папайа танцует под жуткую мелодию. Успей замереть, когда музыка
-            стихнет!
+            стихнет —{' '}
+            <kbd className="rounded bg-white/10 px-1 py-0.5 font-mono text-[10px] text-red-200">
+              ПРОБЕЛ
+            </kbd>{' '}
+            или кнопка ЗАМРИ!
           </span>
-          <span className="flex items-center gap-2">
-            <Music2 className="h-3 w-3" /> Музыка генерируется в реальном времени
+          <span className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5">
+              <Music2 className="h-3 w-3" /> Музыка в реальном времени
+            </span>
+            <span className="hidden items-center gap-1.5 sm:flex">
+              · Сложность: {DIFFICULTY_PRESETS[difficulty].label}
+            </span>
           </span>
         </div>
       </footer>
@@ -743,5 +892,66 @@ function FloatingNotes() {
         )
       })}
     </div>
+  )
+}
+
+function ConfettiBurst() {
+  const colors = [
+    '#fbbf24',
+    '#f97316',
+    '#ef4444',
+    '#ec4899',
+    '#a855f7',
+    '#22d3ee',
+    '#4ade80',
+  ]
+  const pieces = Array.from({ length: 60 })
+  return (
+    <motion.div
+      className="pointer-events-none fixed inset-0 z-50 overflow-hidden"
+      initial={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      {/* celebratory banner */}
+      <motion.div
+        className="absolute left-1/2 top-20 -translate-x-1/2 rounded-full bg-amber-500/20 px-5 py-2 text-lg font-black text-amber-200 ring-2 ring-amber-400/50 backdrop-blur-sm"
+        initial={{ scale: 0, rotate: -8 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 14 }}
+      >
+        <PartyPopper className="mr-2 inline h-5 w-5" />
+        ОТЛИЧНО!
+      </motion.div>
+      {pieces.map((_, i) => {
+        const left = Math.random() * 100
+        const color = colors[i % colors.length]
+        const delay = Math.random() * 0.4
+        const dur = 1.8 + Math.random() * 1.4
+        const drift = (Math.random() - 0.5) * 120
+        const size = 6 + Math.random() * 8
+        const isCircle = i % 3 === 0
+        return (
+          <motion.span
+            key={i}
+            className="absolute top-0"
+            style={{
+              left: `${left}%`,
+              width: size,
+              height: isCircle ? size : size * 0.5,
+              backgroundColor: color,
+              borderRadius: isCircle ? '50%' : '2px',
+            }}
+            initial={{ y: -20, x: 0, rotate: 0, opacity: 1 }}
+            animate={{ y: '110vh', x: drift, rotate: 720, opacity: [1, 1, 0.8, 0] }}
+            transition={{
+              duration: dur,
+              delay,
+              ease: 'easeIn',
+            }}
+          />
+        )
+      })}
+    </motion.div>
   )
 }

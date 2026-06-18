@@ -92,75 +92,78 @@ export function PapayaCharacter({
           <ellipse cx="184" cy="326" rx="25" ry="6" fill="#fff" opacity="0.18" />
         </g>
 
-        {/* ===== back arm (drawn behind body so floss reads front/behind) ===== */}
+        {/* ===== back arm (drawn behind body so floss reads front/behind) =====
+             Thicker + darker outline so it stays visible as a limb. */}
         <g className="arm-back">
           <rect
-            x="69"
-            y="198"
-            width="16"
-            height="74"
-            rx="8"
+            x="66"
+            y="196"
+            width="20"
+            height="78"
+            rx="10"
             fill="url(#papayaLimb)"
-            opacity="0.92"
+            opacity="0.95"
+            stroke="#9a3412"
+            strokeWidth="1.5"
           />
-          <circle cx="77" cy="276" r="11" fill="#ea580c" />
+          <circle cx="76" cy="278" r="13" fill="#fb923c" stroke="#9a3412" strokeWidth="1.5" />
         </g>
 
-        {/* ===== body group (shoulders sway) ===== */}
+        {/* ===== hips group (LOWER body half: belly + seed cavity + seeds).
+             Drawn BEFORE body-group so the upper body overlaps its top edge,
+             and it sways OPPOSITE to the shoulders — the real floss read. ===== */}
+        <g className="hips-group">
+          {/* lower half of the papaya silhouette */}
+          <ellipse cx="150" cy="300" rx="92" ry="86" fill="url(#papayaSkin)" />
+          <ellipse cx="150" cy="300" rx="85" ry="80" fill="url(#papayaFlesh)" />
+          {/* seed cavity + seeds */}
+          <ellipse cx="150" cy="288" rx="46" ry="56" fill="url(#papayaCavity)" />
+          <g fill="#1c1917">
+            <ellipse cx="150" cy="258" rx="5" ry="7" />
+            <ellipse cx="132" cy="270" rx="4.5" ry="6" />
+            <ellipse cx="168" cy="270" rx="4.5" ry="6" />
+            <ellipse cx="146" cy="288" rx="5" ry="7" />
+            <ellipse cx="162" cy="292" rx="4.5" ry="6" />
+            <ellipse cx="128" cy="298" rx="4.5" ry="6" />
+            <ellipse cx="172" cy="302" rx="4.5" ry="6" />
+            <ellipse cx="152" cy="310" rx="5" ry="6.5" />
+            <ellipse cx="138" cy="316" rx="4" ry="5.5" />
+            <ellipse cx="166" cy="318" rx="4" ry="5.5" />
+          </g>
+        </g>
+
+        {/* ===== body group (UPPER body half: shoulders/chest + leaf + face,
+             sways side to side). Drawn after hips so it overlaps cleanly. ===== */}
         <g className="body-group">
-          {/* green skin rim */}
-          <ellipse cx="150" cy="212" rx="94" ry="120" fill="url(#papayaSkin)" />
-          {/* flesh */}
-          <ellipse cx="150" cy="214" rx="86" ry="113" fill="url(#papayaFlesh)" />
-          {/* soft highlight */}
+          {/* upper half of the papaya silhouette */}
+          <ellipse cx="150" cy="160" rx="94" ry="96" fill="url(#papayaSkin)" />
+          <ellipse cx="150" cy="162" rx="86" ry="89" fill="url(#papayaFlesh)" />
+          {/* soft highlight on the upper chest */}
           <ellipse
             cx="118"
-            cy="158"
-            rx="30"
-            ry="46"
+            cy="128"
+            rx="28"
+            ry="42"
             fill="#fff"
             opacity="0.18"
           />
-
-          {/* ===== hips group (seed cavity + seeds, sways OPPOSITE to shoulders) ===== */}
-          <g className="hips-group">
-            <ellipse
-              cx="150"
-              cy="262"
-              rx="44"
-              ry="52"
-              fill="url(#papayaCavity)"
-            />
-            <g fill="#1c1917">
-              <ellipse cx="150" cy="232" rx="5" ry="7" />
-              <ellipse cx="132" cy="244" rx="4.5" ry="6" />
-              <ellipse cx="168" cy="244" rx="4.5" ry="6" />
-              <ellipse cx="146" cy="262" rx="5" ry="7" />
-              <ellipse cx="162" cy="266" rx="4.5" ry="6" />
-              <ellipse cx="128" cy="272" rx="4.5" ry="6" />
-              <ellipse cx="172" cy="276" rx="4.5" ry="6" />
-              <ellipse cx="152" cy="284" rx="5" ry="6.5" />
-              <ellipse cx="138" cy="290" rx="4" ry="5.5" />
-              <ellipse cx="166" cy="292" rx="4" ry="5.5" />
-            </g>
-          </g>
 
           {/* leaf + stem on top */}
           <g className="leaf-stem">
             <rect
               x="146"
-              y="92"
+              y="64"
               width="8"
               height="22"
               rx="4"
               fill="#4d7c0f"
             />
             <path
-              d="M150 96 C 128 78, 104 80, 96 96 C 116 104, 138 104, 150 96 Z"
+              d="M150 68 C 128 50, 104 52, 96 68 C 116 76, 138 76, 150 68 Z"
               fill="url(#papayaLeaf)"
             />
             <path
-              d="M150 96 C 172 78, 196 80, 204 96 C 184 104, 162 104, 150 96 Z"
+              d="M150 68 C 172 50, 196 52, 204 68 C 184 76, 162 76, 150 68 Z"
               fill="url(#papayaLeaf)"
             />
           </g>
@@ -209,18 +212,20 @@ export function PapayaCharacter({
           </g>
         </g>
 
-        {/* ===== front arm (drawn after body so it's always in front) ===== */}
+        {/* ===== front arm (drawn after body so it's always in front).
+             Thicker + outlined so it reads as a limb against the body. ===== */}
         <g className="arm-front">
           <rect
-            x="215"
-            y="198"
-            width="16"
-            height="74"
-            rx="8"
+            x="214"
+            y="196"
+            width="20"
+            height="78"
+            rx="10"
             fill="url(#papayaLimb)"
+            stroke="#9a3412"
+            strokeWidth="1.5"
           />
-          <circle cx="223" cy="276" r="11" fill="#fb923c" />
-          <circle cx="223" cy="276" r="11" fill="none" stroke="#c2410c" strokeWidth="1.5" />
+          <circle cx="224" cy="278" r="13" fill="#fb923c" stroke="#9a3412" strokeWidth="1.5" />
         </g>
       </g>
     </svg>

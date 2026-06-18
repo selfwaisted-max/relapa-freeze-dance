@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url)
+    const filter = searchParams.get('filter') // 'today' or null
+    const where =
+      filter === 'today'
+        ? {
+            createdAt: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            },
+          }
+        : {}
     const scores = await db.score.findMany({
+      where,
       orderBy: [{ score: 'desc' }, { danceSeconds: 'desc' }],
       take: 20,
     })

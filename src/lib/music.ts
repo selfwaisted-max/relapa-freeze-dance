@@ -206,6 +206,24 @@ export class ChuckyEngine {
     }
   }
 
+  /** Short UI click/blip for button presses. */
+  blip(type: 'click' | 'toggle' | 'achievement' = 'click') {
+    if (!this.ctx || !this.master) return
+    const t = this.ctx.currentTime
+    if (type === 'click') {
+      this.note(midiToFreq(84), t, 0.06, 'square', 0.08 * this.volume)
+    } else if (type === 'toggle') {
+      this.note(midiToFreq(76), t, 0.05, 'sine', 0.1 * this.volume)
+      this.note(midiToFreq(81), t + 0.04, 0.06, 'sine', 0.1 * this.volume)
+    } else if (type === 'achievement') {
+      // sparkly ascending arpeggio
+      this.note(midiToFreq(76), t, 0.1, 'triangle', 0.15 * this.volume)
+      this.note(midiToFreq(81), t + 0.08, 0.1, 'triangle', 0.15 * this.volume)
+      this.note(midiToFreq(86), t + 0.16, 0.1, 'triangle', 0.15 * this.volume)
+      this.note(midiToFreq(93), t + 0.24, 0.18, 'triangle', 0.18 * this.volume)
+    }
+  }
+
   dispose() {
     this.stop()
     if (this.ctx) {

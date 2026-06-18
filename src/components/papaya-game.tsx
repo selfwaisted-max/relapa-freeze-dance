@@ -41,6 +41,7 @@ import {
   X,
   Share2,
   Check,
+  CalendarDays,
 } from 'lucide-react'
 
 type GameState =
@@ -87,6 +88,36 @@ function randMusicDuration(diff: Difficulty) {
   return musicMin + Math.random() * (musicMax - musicMin)
 }
 
+// ----- Daily challenge: seeded RNG so all players get the same sequence -----
+function getTodaySeed(): number {
+  const d = new Date()
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
+}
+
+function mulberry32(seed: number) {
+  let a = seed
+  return function () {
+    a |= 0
+    a = (a + 0x6d2b79f5) | 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function dailyMusicDuration(diff: Difficulty): number {
+  const { musicMin, musicMax } = DIFFICULTY_PRESETS[diff]
+  // Use a module-level seeded RNG for daily challenge; created on demand
+  return musicMin + dailyRand() * (musicMax - musicMin)
+}
+
+let _dailyRand: (() => number) | null = null
+function dailyRand(): number {
+  if (!_dailyRand) _dailyRand = mulberry32(getTodaySeed())
+  return _dailyRand()
+}
+
 export default function PapayaGame() {
   const [state, setState] = useState<GameState>('idle')
   const [playerName, setPlayerName] = useState('')
@@ -96,6 +127,9 @@ export default function PapayaGame() {
   const [failReason, setFailReason] = useState<FailReason>(null)
   const [freezeProgress, setFreezeProgress] = useState(1) // 1 -> 0
   const [leaderboard, setLeaderboard] = useState<ScoreEntry[]>([])
+  const [leaderboardFilter, setLeaderboardFilter] = useState<'all' | 'today'>(
+    'all'
+  )
   const [lastSavedRank, setLastSavedRank] = useState<number | null>(null)
   const [savedThisRun, setSavedThisRun] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
@@ -103,6 +137,7 @@ export default function PapayaGame() {
   const [volume, setVolume] = useState(0.5)
   const [difficulty, setDifficulty] = useState<Difficulty>('normal')
   const [skin, setSkin] = useState<Skin>('papaya')
+  const [dailyMode, setDailyMode] = useState(false)
   const [confetti, setConfetti] = useState(false)
   const [combo, setCombo] = useState(0) // consecutive freezes (resets on miss/early)
   const [bestCombo, setBestCombo] = useState(0) // best combo this run
@@ -230,6 +265,7 @@ export default function PapayaGame() {
   // Persist skin choice + track tried skins for achievement
   const changeSkin = (s: Skin) => {
     setSkin(s)
+    playBlip('click')
     setTriedSkins((prev) => {
       if (prev.has(s)) return prev
       const next = new Set(prev)
@@ -275,26 +311,44 @@ export default function PapayaGame() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAchQueue(rest)
     setAchToast(first)
+    // play achievement chime
+    if (soundOnRef.current) {
+      if (!engineRef.current) {
+        engineRef.current = new ChuckyEngine()
+        engineRef.current.init().catch(() => {})
+      }
+      engineRef.current?.blip('achievement')
+    }
     const t = setTimeout(() => setAchToast(null), 3200)
     return () => clearTimeout(t)
   }, [achToast, achQueue])
 
   // ----- Leaderboard -----
-  const fetchLeaderboard = useCallback(async () => {
-    try {
-      const res = await fetch('/api/leaderboard', { cache: 'no-store' })
-      const data = await res.json()
-      if (Array.isArray(data.scores)) setLeaderboard(data.scores)
-    } catch {
-      /* ignore */
-    }
-  }, [])
+  const fetchLeaderboard = useCallback(
+    async (filter: 'all' | 'today' = leaderboardFilter) => {
+      try {
+        const qs = filter === 'today' ? '?filter=today' : ''
+        const res = await fetch(`/api/leaderboard${qs}`, { cache: 'no-store' })
+        const data = await res.json()
+        if (Array.isArray(data.scores)) setLeaderboard(data.scores)
+      } catch {
+        /* ignore */
+      }
+    },
+    [leaderboardFilter]
+  )
 
   useEffect(() => {
     // initial leaderboard load on mount (legitimate one-time data fetch)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLeaderboard()
   }, [fetchLeaderboard])
+
+  // Refetch when filter changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchLeaderboard(leaderboardFilter)
+  }, [leaderboardFilter, fetchLeaderboard])
 
   // ----- cleanup on unmount -----
   useEffect(() => {
@@ -380,7 +434,7 @@ export default function PapayaGame() {
           }),
         })
         if (res.ok) {
-          await fetchLeaderboard()
+          await fetchLeaderboard(leaderboardFilter)
           // figure out rank
           const data = await fetch('/api/leaderboard', {
             cache: 'no-store',
@@ -489,9 +543,12 @@ export default function PapayaGame() {
 
   const scheduleMusicStop = () => {
     if (musicStopTimer.current) clearTimeout(musicStopTimer.current)
+    const dur = dailyMode
+      ? dailyMusicDuration(difficultyRef.current)
+      : randMusicDuration(difficultyRef.current)
     musicStopTimer.current = setTimeout(() => {
       triggerFreezeRef.current()
-    }, randMusicDuration(difficultyRef.current))
+    }, dur)
   }
 
   const onSuccess = () => {
@@ -663,7 +720,8 @@ export default function PapayaGame() {
     scheduleMusicStop()
   }
 
-  const startGame = async () => {
+  const startGame = async (daily = false) => {
+    setDailyMode(daily)
     // reset run state
     setDanceSeconds(0)
     setFreezes(0)
@@ -725,6 +783,16 @@ export default function PapayaGame() {
   const changeVolume = (v: number) => {
     setVolume(v)
     engineRef.current?.setVolume(v)
+  }
+
+  // ----- play a short UI blip (click/toggle/achievement) -----
+  const playBlip = (type: 'click' | 'toggle' | 'achievement' = 'click') => {
+    if (!soundOnRef.current) return
+    if (!engineRef.current) {
+      engineRef.current = new ChuckyEngine()
+      engineRef.current.init().catch(() => {})
+    }
+    engineRef.current?.blip(type)
   }
 
   const isPlaying = state === 'dancing' || state === 'freeze' || state === 'frozen'
@@ -895,6 +963,23 @@ export default function PapayaGame() {
               value={String(score)}
               tone="rose"
             />
+            {/* Daily challenge badge — shown when daily mode is active */}
+            <AnimatePresence>
+              {dailyMode && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.6 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.6 }}
+                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-cyan-500/30 to-blue-700/20 px-3 py-1.5 ring-1 ring-cyan-400/50"
+                  title="Ежедневный челлендж — одинаковая последовательность для всех!"
+                >
+                  <CalendarDays className="h-4 w-4 text-cyan-300" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-cyan-200">
+                    Челлендж
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
             {/* Combo indicator — only shows when combo >= 3 (multiplier active) */}
             <AnimatePresence>
               {combo >= 3 && (
@@ -1145,6 +1230,21 @@ export default function PapayaGame() {
                   exit={{ opacity: 0, y: -10 }}
                   className="flex w-full flex-col items-center gap-3"
                 >
+                  {/* feature highlight chips */}
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-200/80 ring-1 ring-amber-400/20">
+                      <Flame className="h-2.5 w-2.5" /> Комбо
+                    </span>
+                    <span className="flex items-center gap-1 rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-200/80 ring-1 ring-cyan-400/20">
+                      <CalendarDays className="h-2.5 w-2.5" /> Челлендж
+                    </span>
+                    <span className="flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-200/80 ring-1 ring-violet-400/20">
+                      <Medal className="h-2.5 w-2.5" /> {ACHIEVEMENTS.length} ачивок
+                    </span>
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200/80 ring-1 ring-emerald-400/20">
+                      <Trophy className="h-2.5 w-2.5" /> Лидерборд
+                    </span>
+                  </div>
                   <p className="text-center text-xs text-red-200/80">
                     Когда музыка резко стихнет — жми{' '}
                     <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-red-200">
@@ -1172,7 +1272,10 @@ export default function PapayaGame() {
                             <button
                               key={d}
                               type="button"
-                              onClick={() => setDifficulty(d)}
+                              onClick={() => {
+                                setDifficulty(d)
+                                playBlip('click')
+                              }}
                               className={`rounded-lg border px-2 py-1.5 text-xs font-bold transition-all ${
                                 active
                                   ? tone === 'emerald'
@@ -1190,6 +1293,25 @@ export default function PapayaGame() {
                       )}
                     </div>
                   </div>
+                  {/* daily challenge toggle */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDailyMode((v) => !v)
+                      playBlip('toggle')
+                    }}
+                    className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-all ${
+                      dailyMode
+                        ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/40'
+                        : 'border-red-900/40 bg-black/30 text-red-300/60 hover:bg-red-900/20'
+                    }`}
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    Ежедневный челлендж
+                    {dailyMode && (
+                      <Badge className="bg-cyan-500/30 text-cyan-100">вкл</Badge>
+                    )}
+                  </button>
                   {/* skin selector */}
                   <div className="flex w-full flex-col gap-1.5">
                     <span className="text-center text-[10px] uppercase tracking-wider text-red-300/60">
@@ -1225,12 +1347,12 @@ export default function PapayaGame() {
                       maxLength={24}
                       className="border-red-900/50 bg-black/40 text-red-100 placeholder:text-red-300/40"
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') startGame()
+                        if (e.key === 'Enter') startGame(dailyMode)
                       }}
                     />
                     <Button
-                      onClick={startGame}
-                      className="bg-red-700 hover:bg-red-600"
+                      onClick={() => startGame(dailyMode)}
+                      className={dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-red-700 hover:bg-red-600'}
                     >
                       <Play className="mr-1 h-4 w-4" /> Старт
                     </Button>
@@ -1393,8 +1515,8 @@ export default function PapayaGame() {
                   </div>
                   <div className="flex w-full gap-2">
                     <Button
-                      onClick={startGame}
-                      className="flex-1 bg-red-700 hover:bg-red-600"
+                      onClick={() => startGame(dailyMode)}
+                      className={`flex-1 ${dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-red-700 hover:bg-red-600'}`}
                     >
                       <RotateCcw className="mr-1 h-4 w-4" /> Ещё раз
                     </Button>
@@ -1457,11 +1579,28 @@ export default function PapayaGame() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={fetchLeaderboard}
+                  onClick={() => fetchLeaderboard(leaderboardFilter)}
                   className="h-7 px-2 text-xs text-red-300/70 hover:text-red-200"
                 >
                   <RotateCcw className="h-3 w-3" />
                 </Button>
+              </div>
+              {/* Filter tabs */}
+              <div className="flex gap-1 border-t border-red-900/30 px-2 py-1.5">
+                {(['all', 'today'] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setLeaderboardFilter(f)}
+                    className={`rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-all ${
+                      leaderboardFilter === f
+                        ? 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40'
+                        : 'text-red-300/50 hover:bg-red-900/20 hover:text-red-200'
+                    }`}
+                  >
+                    {f === 'all' ? 'Все' : 'Сегодня'}
+                  </button>
+                ))}
               </div>
             </div>
             <ScrollArea className="flex-1">

@@ -1083,7 +1083,7 @@ export default function PapayaGame() {
                   <Skull className="h-5 w-5" />
                   {failReason === 'early'
                     ? 'Too early! The music was still playing.'
-                    : 'Too late! Papaya didn\'t freeze in time.'}
+                    : "Too late! You didn't freeze in time."}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1119,10 +1119,10 @@ export default function PapayaGame() {
               }
             />
 
-            {/* the Relapa character */}
+            {/* the Relapa character — animated SVG floss dance */}
             <motion.div
               key="relapa-char"
-              className="relative flex h-[300px] w-[270px] items-end justify-center sm:h-[340px] sm:w-[300px]"
+              className="relative h-[300px] w-[270px] sm:h-[340px] sm:w-[300px]"
               initial={{ opacity: 0, y: 20, scale: 0.85 }}
               animate={{
                 opacity: 1,
@@ -1996,8 +1996,8 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
   const steps = [
     {
       icon: '🎵',
-      title: 'Papaya dances',
-      desc: 'Papaya does the floss dance to creepy Chucky music. Watch the timer at the top!',
+      title: 'Relapa conducts',
+      desc: 'Relapa the ant conductor does the floss dance. Watch the timer at the top!',
     },
     {
       icon: '🛑',
@@ -2007,7 +2007,7 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
     {
       icon: '⌨️',
       title: 'Press SPACE',
-      desc: 'Press SPACE or the FREEZE button before Papaya freezes on its own. Don\'t press too early!',
+      desc: 'Press SPACE or the FREEZE button before Relapa catches you. Don\'t press too early!',
     },
     {
       icon: '🔥',

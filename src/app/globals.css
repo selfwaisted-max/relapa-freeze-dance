@@ -152,7 +152,7 @@
 }
 
 /* ============================================================
-   Papaya Floss Dance — animated SVG character
+   Relapa Floss Dance — animated SVG ant conductor
    ============================================================ */
 
 .papaya {
@@ -173,16 +173,16 @@
   will-change: transform;
 }
 .papaya .body-group {
-  transform-origin: 150px 160px;
+  transform-origin: 150px 150px;
 }
 .papaya .hips-group {
-  transform-origin: 150px 300px;
+  transform-origin: 150px 290px;
 }
 .papaya .arm-back {
-  transform-origin: 76px 196px;
+  transform-origin: 77px 196px;
 }
 .papaya .arm-front {
-  transform-origin: 224px 196px;
+  transform-origin: 223px 196px;
 }
 
 /* ---- face switching ---- */

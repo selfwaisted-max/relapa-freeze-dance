@@ -758,7 +758,7 @@ export default function PapayaGame() {
 
   return (
     <div
-      className={`min-h-screen flex flex-col bg-[#0d0608] text-foreground ${
+      className={`min-h-screen flex flex-col bg-[#1a1410] text-foreground ${
         screenShake ? 'screen-shake' : ''
       }`}
     >
@@ -767,7 +767,7 @@ export default function PapayaGame() {
         className="pointer-events-none fixed inset-0 opacity-40 bg-cover bg-center"
         style={{ backgroundImage: "url('/relapa-stage.png')" }}
       />
-      <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-[#0d0608]/70 via-[#0d0608]/85 to-[#050203]" />
+      <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-[#1a1410]/50 via-[#1a1410]/65 to-[#0e0a06]" />
       {/* spotlight */}
       <div className="pointer-events-none fixed inset-0 spotlight-glow" />
 
@@ -846,7 +846,7 @@ export default function PapayaGame() {
               initial={{ scale: 0.85, y: 10 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.85, y: 10 }}
-              className="flex flex-col items-center gap-4 rounded-2xl border border-amber-900/50 bg-[#0d0608] px-10 py-8 text-center shadow-2xl"
+              className="flex flex-col items-center gap-4 rounded-2xl border border-amber-900/50 bg-[#1a1410] px-10 py-8 text-center shadow-2xl"
             >
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-900/50 ring-2 ring-red-500/40">
                 <Pause className="h-7 w-7 text-red-300" />
@@ -875,7 +875,7 @@ export default function PapayaGame() {
       </AnimatePresence>
 
       {/* ===== HEADER ===== */}
-      <header className="relative z-10 border-b border-amber-900/40 bg-black/50 backdrop-blur-sm">
+      <header className="relative z-10 border-b border-amber-900/40 bg-black/30 backdrop-blur-sm">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-900/60 ring-2 ring-red-500/40">
@@ -961,7 +961,7 @@ export default function PapayaGame() {
               onClick={toggleSound}
               aria-label={soundOn ? 'Mute' : 'Unmute'}
               title={soundOn ? 'Mute' : 'Unmute'}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-900/50 bg-black/50 text-amber-200 transition-colors hover:bg-amber-900/40 hover:text-white"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-900/50 bg-black/30 text-amber-200 transition-colors hover:bg-amber-900/40 hover:text-white"
             >
               {soundOn ? (
                 <Volume2 className="h-4 w-4" />
@@ -990,7 +990,7 @@ export default function PapayaGame() {
                 onClick={togglePause}
                 aria-label="Pause"
                 title="Pause (P)"
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-900/50 bg-black/50 text-amber-200 transition-colors hover:bg-amber-900/40 hover:text-white"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-900/50 bg-black/30 text-amber-200 transition-colors hover:bg-amber-900/40 hover:text-white"
               >
                 <Pause className="h-4 w-4" />
               </button>
@@ -1002,19 +1002,19 @@ export default function PapayaGame() {
       {/* ===== MAIN ===== */}
       <main className="relative z-10 mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-4 px-4 py-5 lg:grid-cols-[1fr_340px]">
         {/* STAGE */}
-        <section className="relative flex min-h-[60vh] flex-col items-center justify-center overflow-hidden rounded-2xl border border-amber-900/40 bg-gradient-to-b from-[#1a0a10]/80 to-[#0d0306]/90 p-4 shadow-[0_0_60px_-15px_rgba(220,38,38,0.5)]">
+        <section className="relative flex min-h-[480px] flex-col items-center justify-start overflow-hidden rounded-2xl border border-amber-900/40 bg-gradient-to-b from-[#3a2820]/70 to-[#2a1a12]/80 p-4 pt-6 shadow-[0_0_60px_-15px_rgba(217,160,23,0.4)]">
           {/* stage curtains top */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-red-950/80 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-red-900/70 to-transparent" />
           {/* decorative curtain folds */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-12 opacity-50" style={{
             backgroundImage: 'repeating-linear-gradient(90deg, transparent 0, transparent 16px, rgba(127,29,29,0.7) 16px, rgba(127,29,29,0.7) 20px)',
           }} />
           {/* side spotlights (left + right beams) */}
-          <div className="pointer-events-none absolute -left-10 top-0 h-full w-40 rotate-12 bg-gradient-to-r from-amber-500/10 to-transparent blur-2xl" />
-          <div className="pointer-events-none absolute -right-10 top-0 h-full w-40 -rotate-12 bg-gradient-to-l from-amber-500/10 to-transparent blur-2xl" />
+          <div className="pointer-events-none absolute -left-10 top-0 h-full w-40 rotate-12 bg-gradient-to-r from-amber-400/15 to-transparent blur-2xl" />
+          <div className="pointer-events-none absolute -right-10 top-0 h-full w-40 -rotate-12 bg-gradient-to-l from-amber-400/15 to-transparent blur-2xl" />
           {/* stage floor reflection */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 to-transparent" />
-          <div className="pointer-events-none absolute inset-x-8 bottom-0 h-24 rounded-t-full bg-gradient-to-t from-amber-500/10 to-transparent blur-xl" />
+          <div className="pointer-events-none absolute inset-x-8 bottom-0 h-24 rounded-t-full bg-gradient-to-t from-amber-400/15 to-transparent blur-xl" />
 
           {/* floating dust motes for atmosphere */}
           <DustMotes />
@@ -1103,10 +1103,10 @@ export default function PapayaGame() {
           </div>
 
           {/* CHARACTER */}
-          <div className="relative flex h-[300px] w-full items-end justify-center sm:h-[360px]">
+          <div className="relative flex h-[260px] w-full shrink-0 items-end justify-center sm:h-[300px]">
             {/* shadow */}
             <motion.div
-              className="absolute bottom-6 h-4 w-28 rounded-[50%] bg-black/50 blur-md"
+              className="absolute bottom-6 h-4 w-28 rounded-[50%] bg-black/30 blur-md"
               animate={
                 dancing
                   ? { scaleX: [1, 1.3, 0.8, 1.1, 1], opacity: [0.5, 0.35, 0.6, 0.4, 0.5] }
@@ -1122,7 +1122,7 @@ export default function PapayaGame() {
             {/* the Relapa character — animated SVG floss dance */}
             <motion.div
               key="relapa-char"
-              className="relative h-[300px] w-[270px] sm:h-[340px] sm:w-[300px]"
+              className="relative h-[260px] w-[240px] sm:h-[300px] sm:w-[270px]"
               initial={{ opacity: 0, y: 20, scale: 0.85 }}
               animate={{
                 opacity: 1,
@@ -1218,7 +1218,7 @@ export default function PapayaGame() {
                     className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-all ${
                       dailyMode
                         ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/40'
-                        : 'border-amber-900/40 bg-black/40 text-amber-300/60 hover:bg-amber-900/20'
+                        : 'border-amber-900/40 bg-black/30 text-amber-300/60 hover:bg-amber-900/20'
                     }`}
                   >
                     <CalendarDays className="h-4 w-4" />
@@ -1233,7 +1233,7 @@ export default function PapayaGame() {
                       onChange={(e) => setPlayerName(e.target.value)}
                       placeholder="Dancer name"
                       maxLength={24}
-                      className="border-amber-900/50 bg-black/50 text-amber-100 placeholder:text-amber-300/40"
+                      className="border-amber-900/50 bg-black/30 text-amber-100 placeholder:text-amber-300/40"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') startGame(dailyMode)
                       }}
@@ -1281,8 +1281,8 @@ export default function PapayaGame() {
                       showFreezeOverlay
                         ? 'animate-pulse border-amber-400 bg-amber-600/40 text-white shadow-[0_0_30px_-5px_rgba(248,113,113,0.7)]'
                         : dancing
-                          ? 'border-amber-800/50 bg-black/50 text-amber-200 hover:border-red-500/60 hover:bg-amber-900/30'
-                          : 'border-slate-600/50 bg-black/50 text-slate-300'
+                          ? 'border-amber-800/50 bg-black/30 text-amber-200 hover:border-red-500/60 hover:bg-amber-900/30'
+                          : 'border-slate-600/50 bg-black/30 text-slate-300'
                     }`}
                     aria-label="Freeze"
                   >
@@ -1357,7 +1357,7 @@ export default function PapayaGame() {
 
                   {/* Best freeze timing bar — shown when freezes > 0 */}
                   {freezes > 0 && (
-                    <div className="w-full rounded-lg bg-black/40 p-2.5">
+                    <div className="w-full rounded-lg bg-black/30 p-2.5">
                       <div className="mb-1 flex items-center justify-between text-[9px] uppercase tracking-wider text-amber-300/50">
                         <span>Best reaction</span>
                         <span className="font-mono text-amber-300">
@@ -1375,7 +1375,7 @@ export default function PapayaGame() {
 
                   {/* Round history timeline — shows each freeze's timing */}
                   {roundHistory.length > 0 && (
-                    <div className="w-full rounded-lg bg-black/40 p-2.5">
+                    <div className="w-full rounded-lg bg-black/30 p-2.5">
                       <div className="mb-1.5 text-center text-[9px] uppercase tracking-wider text-amber-300/50">
                         Freeze history
                       </div>
@@ -1445,7 +1445,7 @@ export default function PapayaGame() {
                   </div>
                   {/* Lifetime session stats */}
                   {sessionStats.games > 0 && (
-                    <div className="flex w-full items-center justify-center gap-3 rounded-lg bg-black/40 px-3 py-2 text-[10px] text-amber-300/50">
+                    <div className="flex w-full items-center justify-center gap-3 rounded-lg bg-black/30 px-3 py-2 text-[10px] text-amber-300/50">
                       <span>🎮 {sessionStats.games} games</span>
                       <span>·</span>
                       <span>🥭 {sessionStats.totalFreezes} freezes</span>
@@ -1461,7 +1461,7 @@ export default function PapayaGame() {
 
         {/* ===== LEADERBOARD ===== */}
         <aside className="relative flex flex-col gap-3">
-          <Card className="flex flex-1 flex-col border-amber-900/40 bg-black/50 backdrop-blur-sm">
+          <Card className="flex flex-1 flex-col border-amber-900/40 bg-black/30 backdrop-blur-sm">
             <div className="flex items-center justify-between border-b border-amber-900/40 px-4 py-3">
               <div className="flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-amber-400" />
@@ -1576,7 +1576,7 @@ export default function PapayaGame() {
           </Card>
           {/* Lifetime session stats card */}
           {sessionStats.games > 0 && (
-            <Card className="border-amber-900/30 bg-black/50 p-3 backdrop-blur-sm">
+            <Card className="border-amber-900/30 bg-black/30 p-3 backdrop-blur-sm">
               <div className="mb-2 flex items-center gap-1.5">
                 <TrendingUp className="h-3.5 w-3.5 text-amber-400" />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200/70">
@@ -1609,7 +1609,7 @@ export default function PapayaGame() {
       </main>
 
       {/* ===== FOOTER ===== */}
-      <footer className="relative z-10 mt-auto border-t border-amber-900/40 bg-black/50 backdrop-blur-sm">
+      <footer className="relative z-10 mt-auto border-t border-amber-900/40 bg-black/30 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 text-xs text-amber-300/60">
           <div className="flex flex-col items-center justify-between gap-2 sm:flex-row sm:text-left">
             <span>
@@ -1805,7 +1805,7 @@ function Equalizer({ active, muted }: { active: boolean; muted: boolean }) {
   const bars = [0, 1, 2, 3, 4]
   return (
     <div
-      className={`flex h-8 items-end gap-0.5 rounded-md bg-black/50 px-1.5 py-1 ring-1 ring-amber-900/40 ${
+      className={`flex h-8 items-end gap-0.5 rounded-md bg-black/30 px-1.5 py-1 ring-1 ring-amber-900/40 ${
         muted ? 'opacity-50' : ''
       }`}
       title={muted ? 'Sound off' : 'Music playing'}
@@ -1918,7 +1918,7 @@ function AchievementsPanel({
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
         transition={{ type: 'spring', stiffness: 240, damping: 22 }}
-        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-amber-900/50 bg-[#0d0608] shadow-2xl"
+        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-amber-900/50 bg-[#1a1410] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-amber-900/40 px-5 py-3">
@@ -1951,14 +1951,14 @@ function AchievementsPanel({
                   className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
                     isUnlocked
                       ? 'border-amber-400/40 bg-amber-500/10'
-                      : 'border-amber-900/30 bg-black/40 opacity-60'
+                      : 'border-amber-900/30 bg-black/30 opacity-60'
                   }`}
                 >
                   <span
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${
                       isUnlocked
                         ? 'bg-amber-500/20 ring-1 ring-amber-400/40'
-                        : 'bg-black/50 grayscale'
+                        : 'bg-black/30 grayscale'
                     }`}
                   >
                     {isUnlocked ? a.icon : '🔒'}
@@ -2033,7 +2033,7 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
         transition={{ type: 'spring', stiffness: 240, damping: 22 }}
-        className="w-full max-w-lg rounded-2xl border border-amber-900/50 bg-[#0d0608] p-6 shadow-2xl"
+        className="w-full max-w-lg rounded-2xl border border-amber-900/50 bg-[#1a1410] p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 text-center">
@@ -2058,7 +2058,7 @@ function TutorialOverlay({ onClose }: { onClose: () => void }) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 * i }}
-              className="flex items-start gap-3 rounded-lg border border-amber-900/30 bg-black/40 p-3"
+              className="flex items-start gap-3 rounded-lg border border-amber-900/30 bg-black/30 p-3"
             >
               <span className="text-2xl">{s.icon}</span>
               <div className="flex flex-col">

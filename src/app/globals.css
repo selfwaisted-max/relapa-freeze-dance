@@ -120,3 +120,281 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Spotlight glow for the stage */
+.spotlight-glow {
+  background:
+    radial-gradient(
+      ellipse 65% 55% at 50% 15%,
+      rgba(255, 220, 120, 0.3) 0%,
+      rgba(255, 200, 80, 0.12) 35%,
+      transparent 70%
+    );
+}
+
+/* Pulsing red vignette during freeze */
+.freeze-vignette {
+  box-shadow: inset 0 0 120px 30px rgba(220, 38, 38, 0.35);
+  animation: pulseRed 0.6s ease-in-out infinite alternate;
+}
+@keyframes pulseRed {
+  from { box-shadow: inset 0 0 80px 10px rgba(220, 38, 38, 0.25); }
+  to   { box-shadow: inset 0 0 140px 40px rgba(220, 38, 38, 0.5); }
+}
+
+/* Custom scrollbar for leaderboard */
+[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  width: 6px;
+}
+[data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
+  background: rgba(217, 160, 23, 0.4);
+  border-radius: 3px;
+}
+
+/* ============================================================
+   Relapa Floss Dance — animated SVG ant conductor
+   ============================================================ */
+
+.papaya {
+  display: block;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.45));
+}
+
+/* All animated parts share the SVG viewBox coordinate system for origins */
+.papaya .bob-group,
+.papaya .body-group,
+.papaya .hips-group,
+.papaya .arm-back,
+.papaya .arm-front {
+  transform-box: view-box;
+  will-change: transform;
+}
+.papaya .body-group {
+  transform-origin: 150px 150px;
+}
+.papaya .hips-group {
+  transform-origin: 150px 290px;
+}
+.papaya .arm-back {
+  transform-origin: 77px 196px;
+}
+.papaya .arm-front {
+  transform-origin: 223px 196px;
+}
+
+/* ---- face switching ---- */
+.papaya .face-surprised {
+  display: none;
+}
+.papaya.is-frozen .face-happy {
+  display: none;
+}
+.papaya.is-frozen .face-surprised {
+  display: block;
+}
+
+/* ---- subtle frost tint when frozen (keeps color, adds chill) ---- */
+.papaya.is-frozen {
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 10px rgba(103, 232, 249, 0.45));
+}
+
+/* ---- IDLE: gentle sway + bob, arms relaxed ---- */
+.papaya.is-idle .body-group {
+  animation: papaya-idle-sway 2.8s ease-in-out infinite;
+}
+.papaya.is-idle .hips-group {
+  animation: papaya-idle-sway 2.8s ease-in-out infinite;
+  animation-delay: -1.4s;
+}
+.papaya.is-idle .bob-group {
+  animation: papaya-idle-bob 2.8s ease-in-out infinite;
+}
+
+/* ---- DANCING: full floss ---- */
+.papaya.is-dancing .body-group {
+  animation: papaya-floss-body 0.65s ease-in-out infinite;
+}
+.papaya.is-dancing .hips-group {
+  animation: papaya-floss-hips 0.65s ease-in-out infinite;
+}
+.papaya.is-dancing .bob-group {
+  animation: papaya-floss-bob 0.65s ease-in-out infinite;
+}
+/* Back arm (left shoulder) swings across BEHIND the body */
+.papaya.is-dancing .arm-back {
+  animation: papaya-floss-arm-back 0.65s ease-in-out infinite;
+}
+/* Front arm (right shoulder) swings across IN FRONT of the body */
+.papaya.is-dancing .arm-front {
+  animation: papaya-floss-arm-front 0.65s ease-in-out infinite;
+}
+
+/* ---- FROZEN: pause every animation in place ---- */
+.papaya.is-frozen .body-group,
+.papaya.is-frozen .hips-group,
+.papaya.is-frozen .bob-group,
+.papaya.is-frozen .arm-back,
+.papaya.is-frozen .arm-front {
+  animation-play-state: paused;
+}
+
+/* ===== Keyframes ===== */
+
+/* Shoulders sway side to side (upper body half) — strong lean for clear read */
+@keyframes papaya-floss-body {
+  0% {
+    transform: translateX(-11px) rotate(-11deg);
+  }
+  50% {
+    transform: translateX(11px) rotate(11deg);
+  }
+  100% {
+    transform: translateX(-11px) rotate(-11deg);
+  }
+}
+
+/* Hips sway OPPOSITE to shoulders — moves the whole lower silhouette,
+   so the counter-motion is unmistakable. */
+@keyframes papaya-floss-hips {
+  0% {
+    transform: translateX(22px) rotate(6deg);
+  }
+  50% {
+    transform: translateX(-22px) rotate(-6deg);
+  }
+  100% {
+    transform: translateX(22px) rotate(6deg);
+  }
+}
+
+@keyframes papaya-floss-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+/*
+ * Back arm (left shoulder, drawn BEHIND body).
+ * At every moment the back arm is on the OPPOSITE side from the front arm,
+ * crossing behind the torso. Strong offsets so a sliver always peeks out
+ * past the torso edge and the arm never fully disappears.
+ */
+@keyframes papaya-floss-arm-back {
+  0% {
+    /* shoulders lean left -> back arm crosses far to the RIGHT (behind torso) */
+    transform: translate(120px, -14px) rotate(42deg);
+  }
+  25% {
+    /* mid-swing — keep a clear sliver peeking on the right edge */
+    transform: translate(78px, 10px) rotate(16deg);
+  }
+  50% {
+    /* shoulders lean right -> back arm swings out to the LEFT (behind torso) */
+    transform: translate(-72px, -12px) rotate(-52deg);
+  }
+  75% {
+    /* mid-swing — keep a clear sliver peeking on the left edge */
+    transform: translate(-26px, 6px) rotate(-22deg);
+  }
+  100% {
+    transform: translate(120px, -14px) rotate(42deg);
+  }
+}
+
+/*
+ * Front arm (right shoulder, drawn IN FRONT of body).
+ * Mirror of back arm: crosses to the LEFT (in front of torso) when
+ * shoulders lean left, and to the RIGHT (in front) when shoulders lean right.
+ */
+@keyframes papaya-floss-arm-front {
+  0% {
+    /* shoulders lean left -> front arm crosses far to the LEFT (in front) */
+    transform: translate(-120px, -14px) rotate(-42deg);
+  }
+  25% {
+    transform: translate(-78px, 10px) rotate(-16deg);
+  }
+  50% {
+    /* shoulders lean right -> front arm swings out to the RIGHT (in front) */
+    transform: translate(72px, -12px) rotate(52deg);
+  }
+  75% {
+    transform: translate(26px, 6px) rotate(22deg);
+  }
+  100% {
+    transform: translate(-120px, -14px) rotate(-42deg);
+  }
+}
+
+@keyframes papaya-idle-sway {
+  0%,
+  100% {
+    transform: translateX(-2px) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateX(2px) rotate(1.5deg);
+  }
+}
+
+@keyframes papaya-idle-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .papaya .body-group,
+  .papaya .hips-group,
+  .papaya .bob-group,
+  .papaya .arm-back,
+  .papaya .arm-front {
+    animation-duration: 1.6s !important;
+  }
+}
+
+/* Screen shake on the freeze moment (music stops) */
+.screen-shake {
+  animation: screen-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+@keyframes screen-shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, -1px, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 1px, 0); }
+  40%, 60% { transform: translate3d(4px, -1px, 0); }
+}
+
+/* Volume slider — custom amber thumb */
+.vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fbbf24, #f97316);
+  border: 2px solid #7c2d12;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.5);
+}
+.vol-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fbbf24, #f97316);
+  border: 2px solid #7c2d12;
+  cursor: pointer;
+}
+
+

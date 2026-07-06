@@ -50,5 +50,29 @@ test
 prompt
 
 server.log
+
 # Skills directory
 /skills/
+
+# Z.ai internal
+.zscripts/
+tool-results/
+api-contents.json
+api-repo.json
+readme.json
+repo-info.json
+repo-master.json
+worklog.md
+
+# Database
+*.db
+/db/
+
+# Screenshots & search results
+*.png
+!public/*.png
+!public/*.svg
+hosting-search*.json
+
+# Download cache
+/download/

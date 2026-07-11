@@ -39,6 +39,7 @@ bun install
 echo "🔨 构建 Next.js 应用..."
 bun run build
 
+<<<<<<< HEAD
 # 校验 standalone 服务端入口是否生成（部署成功率守卫）。
 # Next 仅在 next.config 含 output:"standalone" 时产出 .next/standalone/server.js。
 # 若用户/AI 编辑项目时改写或删除了该配置，bun run build 仍会成功（static 照常
@@ -97,6 +98,8 @@ if [ ! -f ".next/standalone/server.js" ]; then
     echo "✅ 自愈成功：standalone 服务端入口已生成。"
 fi
 
+=======
+>>>>>>> origin/main
 # 构建 mini-services
 # 检查 Next.js 项目目录下是否有 mini-services 目录
 if [ -d "$NEXTJS_PROJECT_DIR/mini-services" ]; then

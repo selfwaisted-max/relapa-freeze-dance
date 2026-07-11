@@ -114,7 +114,7 @@ function dailyRand(): number {
   return _dailyRand()
 }
 
-export default function PapayaGame() {
+export default function PapayaGame({ onBack }: { onBack?: () => void } = {}) {
   const [state, setState] = useState<GameState>('idle')
   const [playerName, setPlayerName] = useState('')
   const [danceSeconds, setDanceSeconds] = useState(0)

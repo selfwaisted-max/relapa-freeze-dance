@@ -1,28 +1,32 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "Relapa — Freeze Dance Game",
-  description: "Relapa the ant conductor commands the stage. Freeze when he says stop!",
-  keywords: ["game", "dance", "freeze", "papaya", "freeze dance", "reaction game"],
-  authors: [{ name: "Z.ai" }],
+  title: "Relapa — Freeze Dance",
+  description: "Dance to the music and freeze when it stops! A Telegram Mini App game.",
+  icons: {
+    icon: "/logo.svg",
+  },
   openGraph: {
-    title: "Relapa",
-    description: "A freeze-dance game with a strict ant conductor",
+    title: "Relapa — Freeze Dance",
+    description: "Dance to the music and freeze when it stops!",
     type: "website",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#1a1410",
 };
 
 export default function RootLayout({
@@ -33,10 +37,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} antialiased bg-[#1a1410] text-foreground overflow-hidden`}
       >
         {children}
-        <Toaster />
       </body>
     </html>
   );

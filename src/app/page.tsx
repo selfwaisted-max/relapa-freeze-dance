@@ -1,5 +1,12 @@
-import PapayaGame from '@/components/papaya-game'
+'use client'
+
+import TelegramGame from '@/components/telegram-game'
+import { TelegramProvider } from '@/components/telegram-provider'
 
 export default function Home() {
-  return <PapayaGame />
+  return (
+    <TelegramProvider>
+      <TelegramGame />
+    </TelegramProvider>
+  )
 }

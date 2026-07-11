@@ -1,0 +1,2002 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useCallback, useEffect, useRef, useState } from 'react'
+     4→     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→     5→import { Button } from '@/components/ui/button'
+     6→     6→import { Input } from '@/components/ui/input'
+     7→     7→import { Card } from '@/components/ui/card'
+     8→     8→import { Badge } from '@/components/ui/badge'
+     9→     9→import { ScrollArea } from '@/components/ui/scroll-area'
+    10→    10→import { Separator } from '@/components/ui/separator'
+    11→    11→import { ChuckyEngine } from '@/lib/music'
+    12→    12→import { PapayaCharacter } from '@/components/papaya-character'
+    13→    13→import {
+    14→    14→  ACHIEVEMENTS,
+    15→    15→  loadUnlocked,
+    16→    16→  saveUnlocked,
+    17→    17→  checkNewlyUnlocked,
+    18→    18→  getAchievement,
+    19→    19→  type AchievementStats,
+    20→    20→} from '@/lib/achievements'
+    21→    21→import {
+    22→    22→  Music2,
+    23→    23→  Hand,
+    24→    24→  Trophy,
+    25→    25→  Play,
+    26→    26→  RotateCcw,
+    27→    27→  Skull,
+    28→    28→  Timer,
+    29→    29→  Sparkles,
+    30→    30→  Zap,
+    31→    31→  AlertTriangle,
+    32→    32→  Crown,
+    33→    33→  Volume2,
+    34→    34→  VolumeX,
+    35→    35→  PartyPopper,
+    36→    36→  Flame,
+    37→    37→  Star,
+    38→    38→  TrendingUp,
+    39→    39→  Pause,
+    40→    40→  Medal,
+    41→    41→  X,
+    42→    42→  Share2,
+    43→    43→  Check,
+    44→    44→  CalendarDays,
+    45→    45→} from 'lucide-react'
+    46→    46→
+    47→    47→type GameState =
+    48→    48→  | 'idle'
+    49→    49→  | 'countdown'
+    50→    50→  | 'dancing'
+    51→    51→  | 'freeze'
+    52→    52→  | 'frozen'
+    53→    53→  | 'gameover'
+    54→    54→  | 'paused'
+    55→    55→
+    56→    56→type ScoreEntry = {
+    57→    57→  id: string
+    58→    58→  playerName: string
+    59→    59→  score: number
+    60→    60→  danceSeconds: number
+    61→    61→  freezes: number
+    62→    62→  rounds: number
+    63→    63→  createdAt: string
+    64→    64→}
+    65→    65→
+    66→    66→type FailReason = 'early' | 'late' | null
+    67→    67→
+    68→    68→// Progressive difficulty: freeze window shrinks and music gets shorter each round.
+    69→    69→// Round 1 = 1800ms window, shrinks 120ms per round, clamped to 500ms minimum.
+    70→    70→const BASE_WINDOW = 1800
+    71→    71→const MIN_WINDOW = 500
+    72→    72→const WINDOW_SHRINK = 120
+    73→    73→
+    74→    74→function getFreezeWindow(round: number) {
+    75→    75→  return Math.max(MIN_WINDOW, BASE_WINDOW - (round - 1) * WINDOW_SHRINK)
+    76→    76→}
+    77→    77→
+    78→    78→// Music duration also shortens with rounds: starts 4000-7500ms, shrinks toward 2500-4500ms.
+    79→    79→function randMusicDuration(round: number) {
+    80→    80→  const shrink = Math.min(1500, (round - 1) * 120)
+    81→    81→  const musicMin = Math.max(2500, 4000 - shrink)
+    82→    82→  const musicMax = Math.max(4500, 7500 - shrink)
+    83→    83→  return musicMin + Math.random() * (musicMax - musicMin)
+    84→    84→}
+    85→    85→
+    86→    86→// ----- Daily challenge: seeded RNG so all players get the same sequence -----
+    87→    87→function getTodaySeed(): number {
+    88→    88→  const d = new Date()
+    89→    89→  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
+    90→    90→}
+    91→    91→
+    92→    92→function mulberry32(seed: number) {
+    93→    93→  let a = seed
+    94→    94→  return function () {
+    95→    95→    a |= 0
+    96→    96→    a = (a + 0x6d2b79f5) | 0
+    97→    97→    let t = a
+    98→    98→    t = Math.imul(t ^ (t >>> 15), t | 1)
+    99→    99→    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+   100→   100→    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+   101→   101→  }
+   102→   102→}
+   103→   103→
+   104→   104→function dailyMusicDuration(round: number): number {
+   105→   105→  const shrink = Math.min(1500, (round - 1) * 120)
+   106→   106→  const musicMin = Math.max(2500, 4000 - shrink)
+   107→   107→  const musicMax = Math.max(4500, 7500 - shrink)
+   108→   108→  return musicMin + dailyRand() * (musicMax - musicMin)
+   109→   109→}
+   110→   110→
+   111→   111→let _dailyRand: (() => number) | null = null
+   112→   112→function dailyRand(): number {
+   113→   113→  if (!_dailyRand) _dailyRand = mulberry32(getTodaySeed())
+   114→   114→  return _dailyRand()
+   115→   115→}
+   116→   116→
+   117→   117→export default function PapayaGame() {
+   118→   118→  const [state, setState] = useState<GameState>('idle')
+   119→   119→  const [playerName, setPlayerName] = useState('')
+   120→   120→  const [danceSeconds, setDanceSeconds] = useState(0)
+   121→   121→  const [freezes, setFreezes] = useState(0)
+   122→   122→  const [round, setRound] = useState(1)
+   123→   123→  const [failReason, setFailReason] = useState<FailReason>(null)
+   124→   124→  const [freezeProgress, setFreezeProgress] = useState(1) // 1 -> 0
+   125→   125→  const [leaderboard, setLeaderboard] = useState<ScoreEntry[]>([])
+   126→   126→  const [leaderboardFilter, setLeaderboardFilter] = useState<'all' | 'today'>(
+   127→   127→    'all'
+   128→   128→  )
+   129→   129→  const [lastSavedRank, setLastSavedRank] = useState<number | null>(null)
+   130→   130→  const [savedThisRun, setSavedThisRun] = useState(false)
+   131→   131→  const [flash, setFlash] = useState<string | null>(null)
+   132→   132→  const [soundOn, setSoundOn] = useState(true)
+   133→   133→  const [volume, setVolume] = useState(0.5)
+   134→   134→  const [dailyMode, setDailyMode] = useState(false)
+   135→   135→  const [confetti, setConfetti] = useState(false)
+   136→   136→  const [combo, setCombo] = useState(0) // consecutive freezes (resets on miss/early)
+   137→   137→  const [bestCombo, setBestCombo] = useState(0) // best combo this run
+   138→   138→  const [perfectFreezes, setPerfectFreezes] = useState(0) // ideal-timing freezes this run
+   139→   139→  const [bestFreezeTiming, setBestFreezeTiming] = useState(0) // highest freezeProgress this run (0..1)
+   140→   140→  const [roundHistory, setRoundHistory] = useState<
+   141→   141→    { timing: 'perfect' | 'good' | 'normal'; round: number }[]
+   142→   142→  >([])
+   143→   143→  const [personalBest, setPersonalBest] = useState<number | null>(null)
+   144→   144→  const [isNewBest, setIsNewBest] = useState(false)
+   145→   145→  const [unlockedAch, setUnlockedAch] = useState<Set<string>>(new Set())
+   146→   146→  const [achToast, setAchToast] = useState<string | null>(null) // currently shown achievement toast
+   147→   147→  const [achQueue, setAchQueue] = useState<string[]>([]) // queue of achievement ids to show
+   148→   148→  const [showAchPanel, setShowAchPanel] = useState(false) // achievements modal
+   149→   149→  const [pausedFrom, setPausedFrom] = useState<GameState | null>(null) // state before pause
+   150→   150→  const [showTutorial, setShowTutorial] = useState(false)
+   151→   151→  const [countdown, setCountdown] = useState<number | null>(null) // 3,2,1 or null
+   152→   152→  const [screenShake, setScreenShake] = useState(false)
+   153→   153→  const [sessionStats, setSessionStats] = useState({
+   154→   154→    games: 0,
+   155→   155→    totalFreezes: 0,
+   156→   156→    totalDanceSeconds: 0,
+   157→   157→  })
+   158→   158→  const [shared, setShared] = useState(false) // share feedback
+   159→   159→
+   160→   160→  const engineRef = useRef<ChuckyEngine | null>(null)
+   161→   161→  const musicStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+   162→   162→  const freezeWindowTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+   163→   163→  const frozenResumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+   164→   164→  const danceTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+   165→   165→  const freezeAnimRef = useRef<number | null>(null)
+   166→   166→  const freezeStartRef = useRef<number>(0)
+   167→   167→  const freezeWindowRef = useRef<number>(1500)
+   168→   168→  const stateRef = useRef<GameState>('idle')
+   169→   169→  const roundRef = useRef(1)
+   170→   170→  const soundOnRef = useRef<boolean>(true)
+   171→   171→  const comboRef = useRef(0)
+   172→   172→
+   173→   173→  // keep refs in sync for use inside timers / listeners
+   174→   174→  useEffect(() => {
+   175→   175→    stateRef.current = state
+   176→   176→  }, [state])
+   177→   177→  useEffect(() => {
+   178→   178→    roundRef.current = round
+   179→   179→  }, [round])
+   180→   180→  useEffect(() => {
+   181→   181→    soundOnRef.current = soundOn
+   182→   182→  }, [soundOn])
+   183→   183→  useEffect(() => {
+   184→   184→    comboRef.current = combo
+   185→   185→  }, [combo])
+   186→   186→
+   187→   187→  // Load personal best + achievements + tutorial-seen + session stats from localStorage on mount
+   188→   188→  useEffect(() => {
+   189→   189→    try {
+   190→   190→      const stored = localStorage.getItem('papaya-best-score')
+   191→   191→      if (stored) {
+   192→   192→        const n = parseInt(stored, 10)
+   193→   193→        // eslint-disable-next-line react-hooks/set-state-in-effect
+   194→   194→        if (!Number.isNaN(n)) setPersonalBest(n)
+   195→   195→      }
+   196→   196→      setUnlockedAch(loadUnlocked())
+   197→   197→      const seen = localStorage.getItem('papaya-tutorial-seen')
+   198→   198→      if (!seen) {
+   199→   199→        setShowTutorial(true)
+   200→   200→      }
+   201→   201→      const stats = localStorage.getItem('papaya-session-stats')
+   202→   202→      if (stats) {
+   203→   203→        const parsed = JSON.parse(stats)
+   204→   204→        if (parsed && typeof parsed === 'object') setSessionStats(parsed)
+   205→   205→      }
+   206→   206→      const savedSound = localStorage.getItem('papaya-sound')
+   207→   207→      if (savedSound === '0') setSoundOn(false)
+   208→   208→      const savedVol = localStorage.getItem('papaya-volume')
+   209→   209→      if (savedVol) {
+   210→   210→        const v = parseFloat(savedVol)
+   211→   211→        if (!Number.isNaN(v)) setVolume(v)
+   212→   212→      }
+   213→   213→    } catch {
+   214→   214→      /* ignore */
+   215→   215→    }
+   216→   216→  }, [])
+   217→   217→
+   218→   218→  // Persist settings whenever they change
+   219→   219→  useEffect(() => {
+   220→   220→    try {
+   221→   221→      localStorage.setItem('papaya-sound', soundOn ? '1' : '0')
+   222→   222→    } catch {
+   223→   223→      /* ignore */
+   224→   224→    }
+   225→   225→  }, [soundOn])
+   226→   226→  useEffect(() => {
+   227→   227→    try {
+   228→   228→      localStorage.setItem('papaya-volume', String(volume))
+   229→   229→    } catch {
+   230→   230→      /* ignore */
+   231→   231→    }
+   232→   232→  }, [volume])
+   233→   233→
+   234→   234→  // Combo multiplier: every 3 consecutive freezes adds +0.5x (capped at 3x)
+   235→   235→  const comboMultiplier = Math.min(3, 1 + Math.floor(combo / 3) * 0.5)
+   236→   236→  const score = Math.floor(
+   237→   237→    freezes * 100 * comboMultiplier + Math.floor(danceSeconds)
+   238→   238→  )
+   239→   239→
+   240→   240→  // ----- Achievements: check after every stat change, queue newly unlocked -----
+   241→   241→  const checkAchievements = useCallback(
+   242→   242→    (stats: AchievementStats) => {
+   243→   243→      const newly = checkNewlyUnlocked(stats, unlockedAch)
+   244→   244→      if (newly.length === 0) return
+   245→   245→      const next = new Set(unlockedAch)
+   246→   246→      for (const id of newly) next.add(id)
+   247→   247→      setUnlockedAch(next)
+   248→   248→      saveUnlocked(next)
+   249→   249→      setAchQueue((q) => [...q, ...newly])
+   250→   250→    },
+   251→   251→    [unlockedAch]
+   252→   252→  )
+   253→   253→
+   254→   254→  // Process the achievement toast queue: show one at a time for 3s
+   255→   255→  useEffect(() => {
+   256→   256→    if (achToast || achQueue.length === 0) return
+   257→   257→    const [first, ...rest] = achQueue
+   258→   258→    // eslint-disable-next-line react-hooks/set-state-in-effect
+   259→   259→    setAchQueue(rest)
+   260→   260→    setAchToast(first)
+   261→   261→    // play achievement chime
+   262→   262→    if (soundOnRef.current) {
+   263→   263→      if (!engineRef.current) {
+   264→   264→        engineRef.current = new ChuckyEngine()
+   265→   265→        engineRef.current.init().catch(() => {})
+   266→   266→      }
+   267→   267→      engineRef.current?.blip('achievement')
+   268→   268→    }
+   269→   269→    const t = setTimeout(() => setAchToast(null), 3200)
+   270→   270→    return () => clearTimeout(t)
+   271→   271→  }, [achToast, achQueue])
+   272→   272→
+   273→   273→  // ----- Leaderboard -----
+   274→   274→  const fetchLeaderboard = useCallback(
+   275→   275→    async (filter: 'all' | 'today' = leaderboardFilter) => {
+   276→   276→      try {
+   277→   277→        const qs = filter === 'today' ? '?filter=today' : ''
+   278→   278→        const res = await fetch(`/api/leaderboard${qs}`, { cache: 'no-store' })
+   279→   279→        const data = await res.json()
+   280→   280→        if (Array.isArray(data.scores)) setLeaderboard(data.scores)
+   281→   281→      } catch {
+   282→   282→        /* ignore */
+   283→   283→      }
+   284→   284→    },
+   285→   285→    [leaderboardFilter]
+   286→   286→  )
+   287→   287→
+   288→   288→  useEffect(() => {
+   289→   289→    // initial leaderboard load on mount (legitimate one-time data fetch)
+   290→   290→    // eslint-disable-next-line react-hooks/set-state-in-effect
+   291→   291→    fetchLeaderboard()
+   292→   292→  }, [fetchLeaderboard])
+   293→   293→
+   294→   294→  // Refetch when filter changes
+   295→   295→  useEffect(() => {
+   296→   296→    // eslint-disable-next-line react-hooks/set-state-in-effect
+   297→   297→    fetchLeaderboard(leaderboardFilter)
+   298→   298→  }, [leaderboardFilter, fetchLeaderboard])
+   299→   299→
+   300→   300→  // ----- cleanup on unmount -----
+   301→   301→  useEffect(() => {
+   302→   302→    return () => {
+   303→   303→      if (musicStopTimer.current) clearTimeout(musicStopTimer.current)
+   304→   304→      if (freezeWindowTimer.current) clearTimeout(freezeWindowTimer.current)
+   305→   305→      if (frozenResumeTimer.current) clearTimeout(frozenResumeTimer.current)
+   306→   306→      if (danceTimer.current) clearInterval(danceTimer.current)
+   307→   307→      if (freezeAnimRef.current) cancelAnimationFrame(freezeAnimRef.current)
+   308→   308→      engineRef.current?.dispose()
+   309→   309→    }
+   310→   310→  }, [])
+   311→   311→
+   312→   312→  const showFlash = (msg: string) => {
+   313→   313→    setFlash(msg)
+   314→   314→    setTimeout(() => setFlash(null), 900)
+   315→   315→  }
+   316→   316→
+   317→   317→  // ----- refs holding the latest handler versions (avoids stale closures
+   318→   318→  // and declaration-order issues inside timers / listeners) -----
+   319→   319→  const gameOverRef = useRef<(r: FailReason) => void>(() => {})
+   320→   320→  const triggerFreezeRef = useRef<() => void>(() => {})
+   321→   321→  const scheduleMusicStopRef = useRef<() => void>(() => {})
+   322→   322→  const onSuccessRef = useRef<() => void>(() => {})
+   323→   323→
+   324→   324→  // ----- core timers (stable, no deps) -----
+   325→   325→  const startDanceTimer = useCallback(() => {
+   326→   326→    if (danceTimer.current) clearInterval(danceTimer.current)
+   327→   327→    danceTimer.current = setInterval(() => {
+   328→   328→      setDanceSeconds((s) => s + 0.1)
+   329→   329→    }, 100)
+   330→   330→  }, [])
+   331→   331→
+   332→   332→  const stopDanceTimer = useCallback(() => {
+   333→   333→    if (danceTimer.current) {
+   334→   334→      clearInterval(danceTimer.current)
+   335→   335→      danceTimer.current = null
+   336→   336→    }
+   337→   337→  }, [])
+   338→   338→
+   339→   339→  // ----- handlers (plain functions, recreated each render with fresh state) -----
+   340→   340→  const gameOver = async (reason: FailReason) => {
+   341→   341→    if (musicStopTimer.current) clearTimeout(musicStopTimer.current)
+   342→   342→    if (freezeWindowTimer.current) clearTimeout(freezeWindowTimer.current)
+   343→   343→    if (frozenResumeTimer.current) clearTimeout(frozenResumeTimer.current)
+   344→   344→    if (freezeAnimRef.current) cancelAnimationFrame(freezeAnimRef.current)
+   345→   345→    stopDanceTimer()
+   346→   346→    engineRef.current?.stop()
+   347→   347→    if (soundOnRef.current) engineRef.current?.sting('fail')
+   348→   348→    setFailReason(reason)
+   349→   349→    setState('gameover')
+   350→   350→
+   351→   351→    // compute final score with combo multiplier (combo frozen at moment of fail)
+   352→   352→    const finalMult = Math.min(3, 1 + Math.floor(combo / 3) * 0.5)
+   353→   353→    const finalScore = Math.floor(freezes * 100 * finalMult + Math.floor(danceSeconds))
+   354→   354→
+   355→   355→    // save score once
+   356→   356→    if (!savedThisRun) {
+   357→   357→      setSavedThisRun(true)
+   358→   358→      const name = playerName.trim() || 'Anonymous'
+   359→   359→      // Check + persist personal best (localStorage)
+   360→   360→      try {
+   361→   361→        const stored = localStorage.getItem('papaya-best-score')
+   362→   362→        const prev = stored ? parseInt(stored, 10) : 0
+   363→   363→        if (finalScore > prev) {
+   364→   364→          localStorage.setItem('papaya-best-score', String(finalScore))
+   365→   365→          setPersonalBest(finalScore)
+   366→   366→          setIsNewBest(true)
+   367→   367→        }
+   368→   368→      } catch {
+   369→   369→        /* ignore */
+   370→   370→      }
+   371→   371→      try {
+   372→   372→        const res = await fetch('/api/leaderboard', {
+   373→   373→          method: 'POST',
+   374→   374→          headers: { 'Content-Type': 'application/json' },
+   375→   375→          body: JSON.stringify({
+   376→   376→            playerName: name,
+   377→   377→            score: finalScore,
+   378→   378→            danceSeconds: Math.floor(danceSeconds),
+   379→   379→            freezes,
+   380→   380→            rounds: round - 1,
+   381→   381→          }),
+   382→   382→        })
+   383→   383→        if (res.ok) {
+   384→   384→          await fetchLeaderboard(leaderboardFilter)
+   385→   385→          // figure out rank
+   386→   386→          const data = await fetch('/api/leaderboard', {
+   387→   387→            cache: 'no-store',
+   388→   388→          }).then((r) => r.json())
+   389→   389→          const idx = (data.scores as ScoreEntry[]).findIndex(
+   390→   390→            (s) => s.score === finalScore && s.playerName === name
+   391→   391→          )
+   392→   392→          const rank = idx >= 0 ? idx + 1 : null
+   393→   393→          setLastSavedRank(rank)
+   394→   394→          // Top-3 finish triggers a celebratory confetti burst
+   395→   395→          if (rank !== null && rank <= 3) {
+   396→   396→            setConfetti(true)
+   397→   397→            setTimeout(() => setConfetti(false), 3200)
+   398→   398→          }
+   399→   399→        }
+   400→   400→      } catch {
+   401→   401→        /* ignore */
+   402→   402→      }
+   403→   403→      // Final achievement check with end-of-run stats
+   404→   404→      checkAchievements({
+   405→   405→        freezes,
+   406→   406→        combo,
+   407→   407→        bestCombo,
+   408→   408→        danceSeconds: Math.floor(danceSeconds),
+   409→   409→        round,
+   410→   410→        score: finalScore,
+   411→   411→        perfectFreezes,
+   412→   412→      })
+   413→   413→      // Update + persist lifetime session stats
+   414→   414→      setSessionStats((prev) => {
+   415→   415→        const next = {
+   416→   416→          games: prev.games + 1,
+   417→   417→          totalFreezes: prev.totalFreezes + freezes,
+   418→   418→          totalDanceSeconds:
+   419→   419→            prev.totalDanceSeconds + Math.floor(danceSeconds),
+   420→   420→        }
+   421→   421→        try {
+   422→   422→          localStorage.setItem('papaya-session-stats', JSON.stringify(next))
+   423→   423→        } catch {
+   424→   424→          /* ignore */
+   425→   425→        }
+   426→   426→        return next
+   427→   427→      })
+   428→   428→    }
+   429→   429→  }
+   430→   430→
+   431→   431→  // ----- share score -----
+   432→   432→  const shareScore = async () => {
+   433→   433→    const text = `🥭 Relapa Score: ${score} (Freezes: ${freezes}, Danced: ${danceSeconds.toFixed(1)}s, Best combo: ${bestCombo}, Best reaction: ${Math.round(bestFreezeTiming * 100)}%)${lastSavedRank ? ` — #${lastSavedRank} on the leaderboard!` : ''}`
+   434→   434→    try {
+   435→   435→      if (navigator.share) {
+   436→   436→        await navigator.share({ title: 'Relapa', text })
+   437→   437→      } else {
+   438→   438→        await navigator.clipboard.writeText(text)
+   439→   439→        setShared(true)
+   440→   440→        setTimeout(() => setShared(false), 2000)
+   441→   441→      }
+   442→   442→    } catch {
+   443→   443→      /* ignore (user cancelled share) */
+   444→   444→    }
+   445→   445→  }
+   446→   446→
+   447→   447→  // Shared "freeze action" — used by both the SPACE key handler and the
+   448→   448→  // mobile tap-to-freeze button so behaviour is identical.
+   449→   449→  const handleFreezeAction = () => {
+   450→   450→    const s = stateRef.current
+   451→   451→    if (s === 'dancing') {
+   452→   452→      // pressed while music still playing => too early
+   453→   453→      gameOverRef.current('early')
+   454→   454→    } else if (s === 'freeze') {
+   455→   455→      onSuccessRef.current()
+   456→   456→    }
+   457→   457→    // ignore in other states
+   458→   458→  }
+   459→   459→
+   460→   460→  const triggerFreeze = () => {
+   461→   461→    setState('freeze')
+   462→   462→    stopDanceTimer()
+   463→   463→    engineRef.current?.stop()
+   464→   464→    const win = getFreezeWindow(roundRef.current)
+   465→   465→    freezeWindowRef.current = win
+   466→   466→    freezeStartRef.current = performance.now()
+   467→   467→    setFreezeProgress(1)
+   468→   468→    // Screen shake on the freeze moment for impact
+   469→   469→    setScreenShake(true)
+   470→   470→    setTimeout(() => setScreenShake(false), 450)
+   471→   471→
+   472→   472→    const animate = () => {
+   473→   473→      const elapsed = performance.now() - freezeStartRef.current
+   474→   474→      const remaining = Math.max(0, 1 - elapsed / win)
+   475→   475→      setFreezeProgress(remaining)
+   476→   476→      if (remaining > 0 && stateRef.current === 'freeze') {
+   477→   477→        freezeAnimRef.current = requestAnimationFrame(animate)
+   478→   478→      }
+   479→   479→    }
+   480→   480→    freezeAnimRef.current = requestAnimationFrame(animate)
+   481→   481→
+   482→   482→    freezeWindowTimer.current = setTimeout(() => {
+   483→   483→      // missed the window
+   484→   484→      if (stateRef.current === 'freeze') {
+   485→   485→        gameOverRef.current('late')
+   486→   486→      }
+   487→   487→    }, win)
+   488→   488→  }
+   489→   489→
+   490→   490→  const scheduleMusicStop = () => {
+   491→   491→    if (musicStopTimer.current) clearTimeout(musicStopTimer.current)
+   492→   492→    const dur = dailyMode
+   493→   493→      ? dailyMusicDuration(roundRef.current)
+   494→   494→      : randMusicDuration(roundRef.current)
+   495→   495→    musicStopTimer.current = setTimeout(() => {
+   496→   496→      triggerFreezeRef.current()
+   497→   497→    }, dur)
+   498→   498→  }
+   499→   499→
+   500→   500→  const onSuccess = () => {
+   501→   501→    if (freezeWindowTimer.current) clearTimeout(freezeWindowTimer.current)
+   502→   502→    if (freezeAnimRef.current) cancelAnimationFrame(freezeAnimRef.current)
+   503→   503→    setState('frozen')
+   504→   504→    // Timing bonus: freezeProgress still > 0.66 means a "perfect" early freeze
+   505→   505→    const timing = freezeProgress
+   506→   506→    const isPerfect = timing > 0.66
+   507→   507→    const isGood = timing > 0.33 && !isPerfect
+   508→   508→    const bonusMult = isPerfect ? 1.5 : isGood ? 1.2 : 1
+   509→   509→    const newFreezes = freezes + 1
+   510→   510→    const newRound = round + 1
+   511→   511→    const newCombo = combo + 1
+   512→   512→    const newMult = Math.min(3, 1 + Math.floor(newCombo / 3) * 0.5)
+   513→   513→    const newBestCombo = Math.max(bestCombo, newCombo)
+   514→   514→    setFreezes(newFreezes)
+   515→   515→    setRound(newRound)
+   516→   516→    setCombo(newCombo)
+   517→   517→    if (newCombo > bestCombo) setBestCombo(newCombo)
+   518→   518→    if (isPerfect) setPerfectFreezes((p) => p + 1)
+   519→   519→    if (timing > bestFreezeTiming) setBestFreezeTiming(timing)
+   520→   520→    setRoundHistory((h) => [
+   521→   521→      ...h,
+   522→   522→      {
+   523→   523→        timing: isPerfect ? 'perfect' : isGood ? 'good' : 'normal',
+   524→   524→        round: newRound - 1,
+   525→   525→      },
+   526→   526→    ])
+   527→   527→    if (soundOnRef.current) engineRef.current?.sting('success')
+   528→   528→    const timingLabel = isPerfect ? ' PERFECT!' : isGood ? ' Good!' : ''
+   529→   529→    const multLabel = newMult > 1 ? ` ×${newMult.toFixed(1)}` : ''
+   530→   530→    showFlash(
+   531→   531→      `Freeze! +${newRound - 1}${multLabel} 🔥${newCombo}${timingLabel}`
+   532→   532→    )
+   533→   533→
+   534→   534→    // Check achievements with the updated stats (include timing bonus in score)
+   535→   535→    const newPerfectFreezes = perfectFreezes + (isPerfect ? 1 : 0)
+   536→   536→    const runScore = Math.floor(
+   537→   537→      newFreezes * 100 * newMult * bonusMult + Math.floor(danceSeconds)
+   538→   538→    )
+   539→   539→    checkAchievements({
+   540→   540→      freezes: newFreezes,
+   541→   541→      combo: newCombo,
+   542→   542→      bestCombo: newBestCombo,
+   543→   543→      danceSeconds: Math.floor(danceSeconds),
+   544→   544→      round: newRound,
+   545→   545→      score: runScore,
+   546→   546→      perfectFreezes: newPerfectFreezes,
+   547→   547→    })
+   548→   548→
+   549→   549→    // Celebrate milestones: every 5 freezes triggers confetti
+   550→   550→    if (newFreezes > 0 && newFreezes % 5 === 0) {
+   551→   551→      setConfetti(true)
+   552→   552→      setTimeout(() => setConfetti(false), 2600)
+   553→   553→    }
+   554→   554→
+   555→   555→    frozenResumeTimer.current = setTimeout(() => {
+   556→   556→      setState('dancing')
+   557→   557→      if (soundOnRef.current) engineRef.current?.start()
+   558→   558→      startDanceTimer()
+   559→   559→      scheduleMusicStopRef.current()
+   560→   560→    }, 1300)
+   561→   561→  }
+   562→   562→
+   563→   563→  // keep handler refs in sync with the latest closures (assignment happens in
+   564→   564→  // an effect so we never mutate refs during render)
+   565→   565→  useEffect(() => {
+   566→   566→    gameOverRef.current = gameOver
+   567→   567→    triggerFreezeRef.current = triggerFreeze
+   568→   568→    scheduleMusicStopRef.current = scheduleMusicStop
+   569→   569→    onSuccessRef.current = onSuccess
+   570→   570→  })
+   571→   571→
+   572→   572→  // keep the freeze-action ref in sync too
+   573→   573→  const handleFreezeActionRef = useRef(handleFreezeAction)
+   574→   574→  useEffect(() => {
+   575→   575→    handleFreezeActionRef.current = handleFreezeAction
+   576→   576→  })
+   577→   577→
+   578→   578→  // ----- pause / resume (defined before the key handler so its ref exists) -----
+   579→   579→  const togglePause = () => {
+   580→   580→    const s = stateRef.current
+   581→   581→    if (s === 'dancing' || s === 'freeze' || s === 'frozen') {
+   582→   582→      // pause: stop music + freeze timers
+   583→   583→      setPausedFrom(s)
+   584→   584→      setState('paused')
+   585→   585→      stopDanceTimer()
+   586→   586→      if (musicStopTimer.current) {
+   587→   587→        clearTimeout(musicStopTimer.current)
+   588→   588→        musicStopTimer.current = null
+   589→   589→      }
+   590→   590→      if (freezeWindowTimer.current) {
+   591→   591→        clearTimeout(freezeWindowTimer.current)
+   592→   592→        freezeWindowTimer.current = null
+   593→   593→      }
+   594→   594→      if (frozenResumeTimer.current) {
+   595→   595→        clearTimeout(frozenResumeTimer.current)
+   596→   596→        frozenResumeTimer.current = null
+   597→   597→      }
+   598→   598→      if (freezeAnimRef.current) {
+   599→   599→        cancelAnimationFrame(freezeAnimRef.current)
+   600→   600→        freezeAnimRef.current = null
+   601→   601→      }
+   602→   602→      engineRef.current?.stop()
+   603→   603→    } else if (s === 'paused' && pausedFrom) {
+   604→   604→      // resume: restart music + timers depending on where we paused
+   605→   605→      const from = pausedFrom
+   606→   606→      setState(from)
+   607→   607→      setPausedFrom(null)
+   608→   608→      if (from === 'dancing') {
+   609→   609→        if (soundOnRef.current) {
+   610→   610→          engineRef.current?.setVolume(volume)
+   611→   611→          engineRef.current?.start()
+   612→   612→        }
+   613→   613→        startDanceTimer()
+   614→   614→        scheduleMusicStop()
+   615→   615→      }
+   616→   616→      // If paused during 'freeze' or 'frozen', the freeze window is lost —
+   617→   617→      // simply resume dancing fresh (simpler + fairer than partial timing).
+   618→   618→      if (from === 'freeze' || from === 'frozen') {
+   619→   619→        setState('dancing')
+   620→   620→        if (soundOnRef.current) engineRef.current?.start()
+   621→   621→        startDanceTimer()
+   622→   622→        scheduleMusicStop()
+   623→   623→      }
+   624→   624→    }
+   625→   625→  }
+   626→   626→  const togglePauseRef = useRef(togglePause)
+   627→   627→  useEffect(() => {
+   628→   628→    togglePauseRef.current = togglePause
+   629→   629→  })
+   630→   630→
+   631→   631→  // ----- play a short UI blip (click/toggle/achievement) -----
+   632→   632→  const playBlip = (type: 'click' | 'toggle' | 'achievement' = 'click') => {
+   633→   633→    if (!soundOnRef.current) return
+   634→   634→    if (!engineRef.current) {
+   635→   635→      engineRef.current = new ChuckyEngine()
+   636→   636→      engineRef.current.init().catch(() => {})
+   637→   637→    }
+   638→   638→    engineRef.current?.blip(type)
+   639→   639→  }
+   640→   640→
+   641→   641→  // ----- key handler (mounted once) -----
+   642→   642→  useEffect(() => {
+   643→   643→    const onKey = (e: KeyboardEvent) => {
+   644→   644→      // Pause / resume with P or Escape (only meaningful mid-game)
+   645→   645→      if (e.code === 'KeyP' || e.code === 'Escape') {
+   646→   646→        const s = stateRef.current
+   647→   647→        if (s === 'dancing' || s === 'freeze' || s === 'frozen') {
+   648→   648→          e.preventDefault()
+   649→   649→          togglePauseRef.current()
+   650→   650→          return
+   651→   651→        }
+   652→   652→        if (s === 'paused') {
+   653→   653→          e.preventDefault()
+   654→   654→          togglePauseRef.current()
+   655→   655→          return
+   656→   656→        }
+   657→   657→      }
+   658→   658→      // Idle-state shortcuts: D = daily challenge
+   659→   659→      if (stateRef.current === 'idle') {
+   660→   660→        if (e.code === 'KeyD') {
+   661→   661→          setDailyMode((v) => !v)
+   662→   662→          playBlip('toggle')
+   663→   663→          return
+   664→   664→        }
+   665→   665→      }
+   666→   666→      if (e.code !== 'Space') return
+   667→   667→      e.preventDefault()
+   668→   668→      handleFreezeActionRef.current()
+   669→   669→    }
+   670→   670→    window.addEventListener('keydown', onKey)
+   671→   671→    return () => window.removeEventListener('keydown', onKey)
+   672→   672→  }, [])
+   673→   673→
+   674→   674→  // ----- start / restart (with 3-2-1 countdown) -----
+   675→   675→  const beginDancing = async () => {
+   676→   676→    setState('dancing')
+   677→   677→    if (soundOnRef.current) {
+   678→   678→      if (!engineRef.current) engineRef.current = new ChuckyEngine()
+   679→   679→      await engineRef.current.init()
+   680→   680→      engineRef.current.setVolume(volume)
+   681→   681→      await engineRef.current.start()
+   682→   682→    }
+   683→   683→    startDanceTimer()
+   684→   684→    scheduleMusicStop()
+   685→   685→  }
+   686→   686→
+   687→   687→  const startGame = async (daily = false) => {
+   688→   688→    setDailyMode(daily)
+   689→   689→    // reset run state
+   690→   690→    setDanceSeconds(0)
+   691→   691→    setFreezes(0)
+   692→   692→    setRound(1)
+   693→   693→    setFailReason(null)
+   694→   694→    setSavedThisRun(false)
+   695→   695→    setLastSavedRank(null)
+   696→   696→    setFreezeProgress(1)
+   697→   697→    setConfetti(false)
+   698→   698→    setCombo(0)
+   699→   699→    setBestCombo(0)
+   700→   700→    setPerfectFreezes(0)
+   701→   701→    setBestFreezeTiming(0)
+   702→   702→    setRoundHistory([])
+   703→   703→    setIsNewBest(false)
+   704→   704→    setPausedFrom(null)
+   705→   705→    setShared(false)
+   706→   706→    // init audio engine on the user gesture (required by browsers)
+   707→   707→    if (!engineRef.current) engineRef.current = new ChuckyEngine()
+   708→   708→    await engineRef.current.init()
+   709→   709→    // run 3-2-1 countdown, then begin dancing
+   710→   710→    setState('countdown')
+   711→   711→    setCountdown(3)
+   712→   712→    for (const n of [3, 2, 1]) {
+   713→   713→      setCountdown(n)
+   714→   714→      if (soundOnRef.current) engineRef.current?.sting('success')
+   715→   715→      await new Promise((r) => setTimeout(r, 750))
+   716→   716→    }
+   717→   717→    setCountdown(null)
+   718→   718→    await beginDancing()
+   719→   719→  }
+   720→   720→
+   721→   721→  // ----- dismiss tutorial (persist seen flag) -----
+   722→   722→  const dismissTutorial = () => {
+   723→   723→    setShowTutorial(false)
+   724→   724→    try {
+   725→   725→      localStorage.setItem('papaya-tutorial-seen', '1')
+   726→   726→    } catch {
+   727→   727→      /* ignore */
+   728→   728→    }
+   729→   729→  }
+   730→   730→
+   731→   731→  // ----- toggle sound (live) -----
+   732→   732→  const toggleSound = async () => {
+   733→   733→    const next = !soundOn
+   734→   734→    setSoundOn(next)
+   735→   735→    if (!next) {
+   736→   736→      // turning sound off -> stop current music immediately
+   737→   737→      engineRef.current?.stop()
+   738→   738→    } else if (state === 'dancing') {
+   739→   739→      // turning sound back on mid-dance -> resume music
+   740→   740→      if (!engineRef.current) engineRef.current = new ChuckyEngine()
+   741→   741→      await engineRef.current.init()
+   742→   742→      engineRef.current.setVolume(volume)
+   743→   743→      await engineRef.current.start()
+   744→   744→    }
+   745→   745→  }
+   746→   746→
+   747→   747→  // ----- change volume (live) -----
+   748→   748→  const changeVolume = (v: number) => {
+   749→   749→    setVolume(v)
+   750→   750→    engineRef.current?.setVolume(v)
+   751→   751→  }
+   752→   752→
+   753→   753→  const isPlaying = state === 'dancing' || state === 'freeze' || state === 'frozen'
+   754→   754→  const dancing = state === 'dancing'
+   755→   755→  const showFreezeOverlay = state === 'freeze'
+   756→   756→  const isPaused = state === 'paused'
+   757→   757→  const isCountdown = state === 'countdown'
+   758→   758→
+   759→   759→  return (
+   760→   760→    <div
+   761→   761→      className={`min-h-screen flex flex-col bg-[#1a1410] text-foreground ${
+   762→   762→        screenShake ? 'screen-shake' : ''
+   763→   763→      }`}
+   764→   764→    >
+   765→   765→      {/* atmospheric background */}
+   766→   766→      <div
+   767→   767→        className="pointer-events-none fixed inset-0 opacity-40 bg-cover bg-center"
+   768→   768→        style={{ backgroundImage: "url('/relapa-stage.png')" }}
+   769→   769→      />
+   770→   770→      <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-[#1a1410]/50 via-[#1a1410]/65 to-[#0e0a06]" />
+   771→   771→      {/* spotlight */}
+   772→   772→      <div className="pointer-events-none fixed inset-0 spotlight-glow" />
+   773→   773→
+   774→   774→      {/* freeze flash — red pulse when music stops */}
+   775→   775→      <AnimatePresence>
+   776→   776→        {showFreezeOverlay && (
+   777→   777→          <motion.div
+   778→   778→            key="freeze-flash"
+   779→   779→            initial={{ opacity: 0 }}
+   780→   780→            animate={{ opacity: [0, 0.5, 0.2] }}
+   781→   781→            exit={{ opacity: 0 }}
+   782→   782→            transition={{ duration: 0.4 }}
+   783→   783→            className="pointer-events-none fixed inset-0 z-30 bg-red-600/40 mix-blend-screen"
+   784→   784→          />
+   785→   785→        )}
+   786→   786→      </AnimatePresence>
+   787→   787→
+   788→   788→      {/* countdown overlay (3-2-1 before dancing starts) */}
+   789→   789→      <AnimatePresence>
+   790→   790→        {isCountdown && countdown !== null && (
+   791→   791→          <motion.div
+   792→   792→            key="countdown"
+   793→   793→            initial={{ opacity: 0 }}
+   794→   794→            animate={{ opacity: 1 }}
+   795→   795→            exit={{ opacity: 0 }}
+   796→   796→            className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center"
+   797→   797→          >
+   798→   798→            <motion.div
+   799→   799→              key={countdown}
+   800→   800→              initial={{ scale: 0.3, opacity: 0, rotate: -180 }}
+   801→   801→              animate={{ scale: 1, opacity: 1, rotate: 0 }}
+   802→   802→              exit={{ scale: 2, opacity: 0 }}
+   803→   803→              transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+   804→   804→              className="text-[140px] font-black text-amber-300 drop-shadow-[0_0_40px_rgba(251,191,36,0.6)]"
+   805→   805→            >
+   806→   806→              {countdown}
+   807→   807→            </motion.div>
+   808→   808→          </motion.div>
+   809→   809→        )}
+   810→   810→      </AnimatePresence>
+   811→   811→
+   812→   812→      {/* confetti celebration overlay */}
+   813→   813→      <AnimatePresence>
+   814→   814→        {confetti && <ConfettiBurst />}
+   815→   815→      </AnimatePresence>
+   816→   816→
+   817→   817→      {/* achievement toast (top-center) */}
+   818→   818→      <AchievementToast achId={achToast} />
+   819→   819→
+   820→   820→      {/* achievements panel modal */}
+   821→   821→      <AnimatePresence>
+   822→   822→        {showAchPanel && (
+   823→   823→          <AchievementsPanel
+   824→   824→            unlocked={unlockedAch}
+   825→   825→            onClose={() => setShowAchPanel(false)}
+   826→   826→          />
+   827→   827→        )}
+   828→   828→      </AnimatePresence>
+   829→   829→
+   830→   830→      {/* first-play tutorial overlay */}
+   831→   831→      <AnimatePresence>
+   832→   832→        {showTutorial && <TutorialOverlay onClose={dismissTutorial} />}
+   833→   833→      </AnimatePresence>
+   834→   834→
+   835→   835→      {/* pause overlay */}
+   836→   836→      <AnimatePresence>
+   837→   837→        {isPaused && (
+   838→   838→          <motion.div
+   839→   839→            key="pause-overlay"
+   840→   840→            initial={{ opacity: 0 }}
+   841→   841→            animate={{ opacity: 1 }}
+   842→   842→            exit={{ opacity: 0 }}
+   843→   843→            className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+   844→   844→          >
+   845→   845→            <motion.div
+   846→   846→              initial={{ scale: 0.85, y: 10 }}
+   847→   847→              animate={{ scale: 1, y: 0 }}
+   848→   848→              exit={{ scale: 0.85, y: 10 }}
+   849→   849→              className="flex flex-col items-center gap-4 rounded-2xl border border-amber-900/50 bg-[#1a1410] px-10 py-8 text-center shadow-2xl"
+   850→   850→            >
+   851→   851→              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-900/50 ring-2 ring-red-500/40">
+   852→   852→                <Pause className="h-7 w-7 text-red-300" />
+   853→   853→              </div>
+   854→   854→              <h2 className="text-xl font-black text-amber-200">PAUSED</h2>
+   855→   855→              <p className="max-w-xs text-xs text-amber-300/70">
+   856→   856→                Music and timer are stopped. Click Resume, press{' '}
+   857→   857→                <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
+   858→   858→                  P
+   859→   859→                </kbd>{' '}
+   860→   860→                or{' '}
+   861→   861→                <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
+   862→   862→                  Esc
+   863→   863→                </kbd>
+   864→   864→                to get back to dancing.
+   865→   865→              </p>
+   866→   866→              <Button
+   867→   867→                onClick={togglePause}
+   868→   868→                className="bg-amber-800 hover:bg-amber-700"
+   869→   869→              >
+   870→   870→                <Play className="mr-1 h-4 w-4" /> Resume
+   871→   871→              </Button>
+   872→   872→            </motion.div>
+   873→   873→          </motion.div>
+   874→   874→        )}
+   875→   875→      </AnimatePresence>
+   876→   876→
+   877→   877→      {/* ===== HEADER ===== */}
+   878→   878→      <header className="relative z-10 border-b border-amber-900/40 bg-black/30 backdrop-blur-sm">
+   879→   879→        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+   880→   880→          <div className="flex items-center gap-3">
+   881→   881→            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-900/60 ring-2 ring-red-500/40">
+   882→   882→              <Skull className="h-5 w-5 text-red-300" />
+   883→   883→            </div>
+   884→   884→            <div>
+   885→   885→              <h1 className="text-lg font-black tracking-tight text-amber-200 sm:text-xl">
+   886→   886→                RELAPA
+   887→   887→              </h1>
+   888→   888→              <p className="text-[11px] text-amber-300/70">
+   889→   889→                Dance for him. Freeze when he says stop.
+   890→   890→              </p>
+   891→   891→            </div>
+   892→   892→          </div>
+   893→   893→
+   894→   894→          {/* stat cluster */}
+   895→   895→          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+   896→   896→            <StatChip
+   897→   897→              icon={<Timer className="h-4 w-4" />}
+   898→   898→              label="Seconds danced"
+   899→   899→              value={danceSeconds.toFixed(1)}
+   900→   900→              tone="amber"
+   901→   901→              big
+   902→   902→            />
+   903→   903→            <StatChip
+   904→   904→              icon={<Hand className="h-4 w-4" />}
+   905→   905→              label="Freezes"
+   906→   906→              value={String(freezes)}
+   907→   907→              tone="emerald"
+   908→   908→            />
+   909→   909→            <StatChip
+   910→   910→              icon={<Sparkles className="h-4 w-4" />}
+   911→   911→              label="Round"
+   912→   912→              value={String(round)}
+   913→   913→              tone="violet"
+   914→   914→            />
+   915→   915→            <StatChip
+   916→   916→              icon={<Trophy className="h-4 w-4" />}
+   917→   917→              label="Score"
+   918→   918→              value={String(score)}
+   919→   919→              tone="rose"
+   920→   920→            />
+   921→   921→            {/* Daily challenge badge — shown when daily mode is active */}
+   922→   922→            <AnimatePresence>
+   923→   923→              {dailyMode && (
+   924→   924→                <motion.div
+   925→   925→                  initial={{ opacity: 0, scale: 0.6 }}
+   926→   926→                  animate={{ opacity: 1, scale: 1 }}
+   927→   927→                  exit={{ opacity: 0, scale: 0.6 }}
+   928→   928→                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-cyan-500/30 to-blue-700/20 px-3 py-1.5 ring-1 ring-cyan-400/50"
+   929→   929→                  title="Daily challenge — same sequence for everyone!"
+   930→   930→                >
+   931→   931→                  <CalendarDays className="h-4 w-4 text-cyan-300" />
+   932→   932→                  <span className="text-[10px] font-black uppercase tracking-wider text-cyan-200">
+   933→   933→                    Challenge
+   934→   934→                  </span>
+   935→   935→                </motion.div>
+   936→   936→              )}
+   937→   937→            </AnimatePresence>
+   938→   938→            {/* Combo indicator — only shows when combo >= 3 (multiplier active) */}
+   939→   939→            <AnimatePresence>
+   940→   940→              {combo >= 3 && (
+   941→   941→                <motion.div
+   942→   942→                  initial={{ opacity: 0, scale: 0.6, x: -10 }}
+   943→   943→                  animate={{ opacity: 1, scale: 1, x: 0 }}
+   944→   944→                  exit={{ opacity: 0, scale: 0.6, x: -10 }}
+   945→   945→                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-orange-500/30 to-red-700/20 px-3 py-1.5 ring-1 ring-orange-400/50"
+   946→   946→                >
+   947→   947→                  <Flame className="h-4 w-4 animate-pulse text-orange-300" />
+   948→   948→                  <div className="flex flex-col leading-none">
+   949→   949→                    <span className="text-[9px] uppercase tracking-wider text-orange-200/70">
+   950→   950→                      Combo
+   951→   951→                    </span>
+   952→   952→                    <span className="font-mono text-sm font-black text-orange-200">
+   953→   953→                      ×{comboMultiplier.toFixed(1)} · {combo}
+   954→   954→                    </span>
+   955→   955→                  </div>
+   956→   956→                </motion.div>
+   957→   957→              )}
+   958→   958→            </AnimatePresence>
+   959→   959→            <button
+   960→   960→              type="button"
+   961→   961→              onClick={toggleSound}
+   962→   962→              aria-label={soundOn ? 'Mute' : 'Unmute'}
+   963→   963→              title={soundOn ? 'Mute' : 'Unmute'}
+   964→   964→              className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-900/50 bg-black/30 text-amber-200 transition-colors hover:bg-amber-900/40 hover:text-white"
+   965→   965→            >
+   966→   966→              {soundOn ? (
+   967→   967→                <Volume2 className="h-4 w-4" />
+   968→   968→              ) : (
+   969→   969→                <VolumeX className="h-4 w-4 text-red-400/60" />
+   970→   970→              )}
+   971→   971→            </button>
+   972→   972→            {/* Volume slider — shown only when sound is on */}
+   973→   973→            {soundOn && (
+   974→   974→              <input
+   975→   975→                type="range"
+   976→   976→                min={0}
+   977→   977→                max={1}
+   978→   978→                step={0.05}
+   979→   979→                value={volume}
+   980→   980→                onChange={(e) => changeVolume(parseFloat(e.target.value))}
+   981→   981→                aria-label="Volume"
+   982→   982→                title={`Volume: ${Math.round(volume * 100)}%`}
+   983→   983→                className="vol-slider h-1.5 w-16 cursor-pointer appearance-none rounded-full bg-amber-900/50 sm:w-20"
+   984→   984→              />
+   985→   985→            )}
+   986→   986→            {/* Pause button — shown only while playing */}
+   987→   987→            {isPlaying && (
+   988→   988→              <button
+   989→   989→                type="button"
+   990→   990→                onClick={togglePause}
+   991→   991→                aria-label="Pause"
+   992→   992→                title="Pause (P)"
+   993→   993→                className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-900/50 bg-black/30 text-amber-200 transition-colors hover:bg-amber-900/40 hover:text-white"
+   994→   994→              >
+   995→   995→                <Pause className="h-4 w-4" />
+   996→   996→              </button>
+   997→   997→            )}
+   998→   998→          </div>
+   999→   999→        </div>
+  1000→  1000→      </header>
+  1001→  1001→
+  1002→  1002→      {/* ===== MAIN ===== */}
+  1003→  1003→      <main className="relative z-10 mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-4 px-4 py-5 lg:grid-cols-[1fr_340px]">
+  1004→  1004→        {/* STAGE */}
+  1005→  1005→        <section className="relative flex min-h-[480px] flex-col items-center justify-start overflow-hidden rounded-2xl border border-amber-900/40 bg-gradient-to-b from-[#3a2820]/70 to-[#2a1a12]/80 p-4 pt-6 shadow-[0_0_60px_-15px_rgba(217,160,23,0.4)]">
+  1006→  1006→          {/* stage curtains top */}
+  1007→  1007→          <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-red-900/70 to-transparent" />
+  1008→  1008→          {/* decorative curtain folds */}
+  1009→  1009→          <div className="pointer-events-none absolute inset-x-0 top-0 h-12 opacity-50" style={{
+  1010→  1010→            backgroundImage: 'repeating-linear-gradient(90deg, transparent 0, transparent 16px, rgba(127,29,29,0.7) 16px, rgba(127,29,29,0.7) 20px)',
+  1011→  1011→          }} />
+  1012→  1012→          {/* side spotlights (left + right beams) */}
+  1013→  1013→          <div className="pointer-events-none absolute -left-10 top-0 h-full w-40 rotate-12 bg-gradient-to-r from-amber-400/15 to-transparent blur-2xl" />
+  1014→  1014→          <div className="pointer-events-none absolute -right-10 top-0 h-full w-40 -rotate-12 bg-gradient-to-l from-amber-400/15 to-transparent blur-2xl" />
+  1015→  1015→          {/* stage floor reflection */}
+  1016→  1016→          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 to-transparent" />
+  1017→  1017→          <div className="pointer-events-none absolute inset-x-8 bottom-0 h-24 rounded-t-full bg-gradient-to-t from-amber-400/15 to-transparent blur-xl" />
+  1018→  1018→
+  1019→  1019→          {/* floating dust motes for atmosphere */}
+  1020→  1020→          <DustMotes />
+  1021→  1021→
+  1022→  1022→          {/* music equalizer (top-right of stage, shown while music plays) */}
+  1023→  1023→          <AnimatePresence>
+  1024→  1024→            {(dancing || (soundOn && isPlaying)) && (
+  1025→  1025→              <motion.div
+  1026→  1026→                key="eq"
+  1027→  1027→                initial={{ opacity: 0, x: 10 }}
+  1028→  1028→                animate={{ opacity: 1, x: 0 }}
+  1029→  1029→                exit={{ opacity: 0, x: 10 }}
+  1030→  1030→                className="absolute right-4 top-4 z-10"
+  1031→  1031→              >
+  1032→  1032→                <Equalizer active={dancing} muted={!soundOn} />
+  1033→  1033→              </motion.div>
+  1034→  1034→            )}
+  1035→  1035→          </AnimatePresence>
+  1036→  1036→
+  1037→  1037→          {/* status banner */}
+  1038→  1038→          <div className="relative z-10 mb-2 flex h-7 items-center justify-center">
+  1039→  1039→            <AnimatePresence mode="wait">
+  1040→  1040→              {dancing && (
+  1041→  1041→                <motion.div
+  1042→  1042→                  key="dancing"
+  1043→  1043→                  initial={{ opacity: 0, y: -6 }}
+  1044→  1044→                  animate={{ opacity: 1, y: 0 }}
+  1045→  1045→                  exit={{ opacity: 0, y: -6 }}
+  1046→  1046→                  className="flex items-center gap-2 text-sm font-semibold text-amber-300"
+  1047→  1047→                >
+  1048→  1048→                  <Music2 className="h-4 w-4 animate-pulse" />
+  1049→  1049→                  Relapa is conducting — dance!
+  1050→  1050→                </motion.div>
+  1051→  1051→              )}
+  1052→  1052→              {showFreezeOverlay && (
+  1053→  1053→                <motion.div
+  1054→  1054→                  key="freeze"
+  1055→  1055→                  initial={{ opacity: 0, scale: 0.8 }}
+  1056→  1056→                  animate={{ opacity: 1, scale: 1 }}
+  1057→  1057→                  exit={{ opacity: 0, scale: 0.8 }}
+  1058→  1058→                  className="flex items-center gap-2 text-base font-black text-red-400"
+  1059→  1059→                >
+  1060→  1060→                  <AlertTriangle className="h-5 w-5 animate-ping" />
+  1061→  1061→                  FREEZE! Hit SPACE!
+  1062→  1062→                </motion.div>
+  1063→  1063→              )}
+  1064→  1064→              {state === 'frozen' && (
+  1065→  1065→                <motion.div
+  1066→  1066→                  key="frozen"
+  1067→  1067→                  initial={{ opacity: 0, scale: 0.6 }}
+  1068→  1068→                  animate={{ opacity: 1, scale: 1 }}
+  1069→  1069→                  exit={{ opacity: 0, scale: 0.6 }}
+  1070→  1070→                  className="flex items-center gap-2 text-base font-black text-emerald-300"
+  1071→  1071→                >
+  1072→  1072→                  <Zap className="h-5 w-5" />
+  1073→  1073→                  Relapa froze! Perfect!
+  1074→  1074→                </motion.div>
+  1075→  1075→              )}
+  1076→  1076→              {state === 'gameover' && (
+  1077→  1077→                <motion.div
+  1078→  1078→                  key="over"
+  1079→  1079→                  initial={{ opacity: 0 }}
+  1080→  1080→                  animate={{ opacity: 1 }}
+  1081→  1081→                  className="flex items-center gap-2 text-base font-black text-red-400"
+  1082→  1082→                >
+  1083→  1083→                  <Skull className="h-5 w-5" />
+  1084→  1084→                  {failReason === 'early'
+  1085→  1085→                    ? 'Too early! The music was still playing.'
+  1086→  1086→                    : "Too late! You didn't freeze in time."}
+  1087→  1087→                </motion.div>
+  1088→  1088→              )}
+  1089→  1089→            </AnimatePresence>
+  1090→  1090→          </div>
+  1091→  1091→
+  1092→  1092→          {/* freeze reaction bar */}
+  1093→  1093→          <div className="relative z-10 mb-4 h-2 w-48 overflow-hidden rounded-full bg-white/10">
+  1094→  1094→            <AnimatePresence>
+  1095→  1095→              {showFreezeOverlay && (
+  1096→  1096→                <motion.div
+  1097→  1097→                  key="bar"
+  1098→  1098→                  className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500"
+  1099→  1099→                  style={{ width: `${freezeProgress * 100}%` }}
+  1100→  1100→                />
+  1101→  1101→              )}
+  1102→  1102→            </AnimatePresence>
+  1103→  1103→          </div>
+  1104→  1104→
+  1105→  1105→          {/* CHARACTER */}
+  1106→  1106→          <div className="relative flex h-[260px] w-full shrink-0 items-end justify-center sm:h-[300px]">
+  1107→  1107→            {/* shadow */}
+  1108→  1108→            <motion.div
+  1109→  1109→              className="absolute bottom-6 h-4 w-28 rounded-[50%] bg-black/30 blur-md"
+  1110→  1110→              animate={
+  1111→  1111→                dancing
+  1112→  1112→                  ? { scaleX: [1, 1.3, 0.8, 1.1, 1], opacity: [0.5, 0.35, 0.6, 0.4, 0.5] }
+  1113→  1113→                  : { scaleX: 1, opacity: 0.5 }
+  1114→  1114→              }
+  1115→  1115→              transition={
+  1116→  1116→                dancing
+  1117→  1117→                  ? { duration: 0.6, repeat: Infinity, ease: 'easeInOut' }
+  1118→  1118→                  : { duration: 0.2 }
+  1119→  1119→              }
+  1120→  1120→            />
+  1121→  1121→
+  1122→  1122→            {/* the Relapa character — animated SVG floss dance */}
+  1123→  1123→            <motion.div
+  1124→  1124→              key="relapa-char"
+  1125→  1125→              className="relative h-[260px] w-[240px] sm:h-[300px] sm:w-[270px]"
+  1126→  1126→              initial={{ opacity: 0, y: 20, scale: 0.85 }}
+  1127→  1127→              animate={{
+  1128→  1128→                opacity: 1,
+  1129→  1129→                y: 0,
+  1130→  1130→                scale: 1,
+  1131→  1131→                filter:
+  1132→  1132→                  combo >= 5
+  1133→  1133→                    ? 'drop-shadow(0 0 18px rgba(251,191,36,0.7))'
+  1134→  1134→                    : 'drop-shadow(0 0 0px transparent)',
+  1135→  1135→              }}
+  1136→  1136→              transition={{ type: 'spring', stiffness: 200, damping: 18 }}
+  1137→  1137→            >
+  1138→  1138→              <PapayaCharacter state={state} />
+  1139→  1139→            </motion.div>
+  1140→  1140→
+  1141→  1141→            {/* floating notes while dancing */}
+  1142→  1142→            {dancing && (
+  1143→  1143→              <FloatingNotes />
+  1144→  1144→            )}
+  1145→  1145→
+  1146→  1146→            {/* ice effect when frozen */}
+  1147→  1147→            <AnimatePresence>
+  1148→  1148→              {(state === 'frozen' || state === 'gameover') && (
+  1149→  1149→                <motion.div
+  1150→  1150→                  initial={{ opacity: 0, scale: 0.8 }}
+  1151→  1151→                  animate={{ opacity: 1, scale: 1 }}
+  1152→  1152→                  exit={{ opacity: 0 }}
+  1153→  1153→                  className="pointer-events-none absolute inset-0 flex items-center justify-center"
+  1154→  1154→                >
+  1155→  1155→                  <div className="absolute bottom-8 h-[260px] w-[260px] rounded-full bg-cyan-300/10 blur-2xl" />
+  1156→  1156→                </motion.div>
+  1157→  1157→              )}
+  1158→  1158→            </AnimatePresence>
+  1159→  1159→          </div>
+  1160→  1160→
+  1161→  1161→          {/* flash message */}
+  1162→  1162→          <div className="relative z-10 mt-3 flex h-6 items-center justify-center">
+  1163→  1163→            <AnimatePresence>
+  1164→  1164→              {flash && (
+  1165→  1165→                <motion.div
+  1166→  1166→                  initial={{ opacity: 0, y: 8 }}
+  1167→  1167→                  animate={{ opacity: 1, y: 0 }}
+  1168→  1168→                  exit={{ opacity: 0, y: -8 }}
+  1169→  1169→                  className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-200 ring-1 ring-emerald-400/40"
+  1170→  1170→                >
+  1171→  1171→                  {flash}
+  1172→  1172→                </motion.div>
+  1173→  1173→              )}
+  1174→  1174→            </AnimatePresence>
+  1175→  1175→          </div>
+  1176→  1176→
+  1177→  1177→          {/* control panel */}
+  1178→  1178→          <div className="relative z-10 mt-4 flex w-full max-w-md flex-col items-center gap-3">
+  1179→  1179→            <AnimatePresence mode="wait">
+  1180→  1180→              {state === 'idle' && (
+  1181→  1181→                <motion.div
+  1182→  1182→                  key="idle-panel"
+  1183→  1183→                  initial={{ opacity: 0, y: 10 }}
+  1184→  1184→                  animate={{ opacity: 1, y: 0 }}
+  1185→  1185→                  exit={{ opacity: 0, y: -10 }}
+  1186→  1186→                  className="flex w-full flex-col items-center gap-3"
+  1187→  1187→                >
+  1188→  1188→                  {/* feature highlight chips */}
+  1189→  1189→                  <div className="flex flex-wrap items-center justify-center gap-1.5">
+  1190→  1190→                    <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-200/80 ring-1 ring-amber-400/20">
+  1191→  1191→                      <Flame className="h-2.5 w-2.5" /> Combo
+  1192→  1192→                    </span>
+  1193→  1193→                    <span className="flex items-center gap-1 rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-200/80 ring-1 ring-cyan-400/20">
+  1194→  1194→                      <CalendarDays className="h-2.5 w-2.5" /> Challenge
+  1195→  1195→                    </span>
+  1196→  1196→                    <span className="flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-200/80 ring-1 ring-violet-400/20">
+  1197→  1197→                      <Medal className="h-2.5 w-2.5" /> {ACHIEVEMENTS.length} achievements
+  1198→  1198→                    </span>
+  1199→  1199→                    <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200/80 ring-1 ring-emerald-400/20">
+  1200→  1200→                      <Trophy className="h-2.5 w-2.5" /> Leaderboard
+  1201→  1201→                    </span>
+  1202→  1202→                  </div>
+  1203→  1203→                  <p className="text-center text-xs text-amber-200/80">
+  1204→  1204→                    When the music suddenly stops — press{' '}
+  1205→  1205→                    <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
+  1206→  1206→                      SPACE
+  1207→  1207→                    </kbd>{' '}
+  1208→  1208→                    or the FREEZE button. Don't press too early! 🔥 A streak of 3+ freezes
+  1209→  1209→                    gives a score multiplier.
+  1210→  1210→                  </p>
+  1211→  1211→                  {/* daily challenge toggle */}
+  1212→  1212→                  <button
+  1213→  1213→                    type="button"
+  1214→  1214→                    onClick={() => {
+  1215→  1215→                      setDailyMode((v) => !v)
+  1216→  1216→                      playBlip('toggle')
+  1217→  1217→                    }}
+  1218→  1218→                    className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-all ${
+  1219→  1219→                      dailyMode
+  1220→  1220→                        ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/40'
+  1221→  1221→                        : 'border-amber-900/40 bg-black/30 text-amber-300/60 hover:bg-amber-900/20'
+  1222→  1222→                    }`}
+  1223→  1223→                  >
+  1224→  1224→                    <CalendarDays className="h-4 w-4" />
+  1225→  1225→                    Daily Challenge
+  1226→  1226→                    {dailyMode && (
+  1227→  1227→                      <Badge className="bg-cyan-500/30 text-cyan-100">on</Badge>
+  1228→  1228→                    )}
+  1229→  1229→                  </button>
+  1230→  1230→                  <div className="flex w-full gap-2">
+  1231→  1231→                    <Input
+  1232→  1232→                      value={playerName}
+  1233→  1233→                      onChange={(e) => setPlayerName(e.target.value)}
+  1234→  1234→                      placeholder="Dancer name"
+  1235→  1235→                      maxLength={24}
+  1236→  1236→                      className="border-amber-900/50 bg-black/30 text-amber-100 placeholder:text-amber-300/40"
+  1237→  1237→                      onKeyDown={(e) => {
+  1238→  1238→                        if (e.key === 'Enter') startGame(dailyMode)
+  1239→  1239→                      }}
+  1240→  1240→                    />
+  1241→  1241→                    <Button
+  1242→  1242→                      onClick={() => startGame(dailyMode)}
+  1243→  1243→                      className={dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-amber-800 hover:bg-amber-700'}
+  1244→  1244→                    >
+  1245→  1245→                      <Play className="mr-1 h-4 w-4" /> Start
+  1246→  1246→                    </Button>
+  1247→  1247→                  </div>
+  1248→  1248→                  {/* re-open tutorial link */}
+  1249→  1249→                  <button
+  1250→  1250→                    type="button"
+  1251→  1251→                    onClick={() => setShowTutorial(true)}
+  1252→  1252→                    className="text-[11px] text-amber-300/50 underline-offset-2 transition-colors hover:text-amber-200 hover:underline"
+  1253→  1253→                  >
+  1254→  1254→                    How to play?
+  1255→  1255→                  </button>
+  1256→  1256→                </motion.div>
+  1257→  1257→              )}
+  1258→  1258→
+  1259→  1259→              {isPlaying && (
+  1260→  1260→                <motion.div
+  1261→  1261→                  key="playing-panel"
+  1262→  1262→                  initial={{ opacity: 0 }}
+  1263→  1263→                  animate={{ opacity: 1 }}
+  1264→  1264→                  exit={{ opacity: 0 }}
+  1265→  1265→                  className="flex w-full flex-col items-center gap-3"
+  1266→  1266→                >
+  1267→  1267→                  <div className="flex items-center gap-2 text-center text-xs text-amber-200/70">
+  1268→  1268→                    <kbd className="rounded bg-white/10 px-2 py-1 font-mono text-amber-100">
+  1269→  1269→                      SPACE
+  1270→  1270→                    </kbd>
+  1271→  1271→                    = freeze when the music stops
+  1272→  1272→                  </div>
+  1273→  1273→                  {/* big tap-to-freeze button — primary control on touch devices */}
+  1274→  1274→                  <button
+  1275→  1275→                    type="button"
+  1276→  1276→                    onPointerDown={(e) => {
+  1277→  1277→                      e.preventDefault()
+  1278→  1278→                      handleFreezeAction()
+  1279→  1279→                    }}
+  1280→  1280→                    className={`flex h-16 w-full select-none items-center justify-center gap-2 rounded-xl border-2 text-base font-black tracking-wide transition-all active:scale-95 ${
+  1281→  1281→                      showFreezeOverlay
+  1282→  1282→                        ? 'animate-pulse border-amber-400 bg-amber-600/40 text-white shadow-[0_0_30px_-5px_rgba(248,113,113,0.7)]'
+  1283→  1283→                        : dancing
+  1284→  1284→                          ? 'border-amber-800/50 bg-black/30 text-amber-200 hover:border-red-500/60 hover:bg-amber-900/30'
+  1285→  1285→                          : 'border-slate-600/50 bg-black/30 text-slate-300'
+  1286→  1286→                    }`}
+  1287→  1287→                    aria-label="Freeze"
+  1288→  1288→                  >
+  1289→  1289→                    <Hand className="h-5 w-5" />
+  1290→  1290→                    FREEZE
+  1291→  1291→                  </button>
+  1292→  1292→                </motion.div>
+  1293→  1293→              )}
+  1294→  1294→
+  1295→  1295→              {state === 'gameover' && (
+  1296→  1296→                <motion.div
+  1297→  1297→                  key="over-panel"
+  1298→  1298→                  initial={{ opacity: 0, y: 10 }}
+  1299→  1299→                  animate={{ opacity: 1, y: 0 }}
+  1300→  1300→                  exit={{ opacity: 0, y: -10 }}
+  1301→  1301→                  className="flex w-full flex-col items-center gap-3"
+  1302→  1302→                >
+  1303→  1303→                  {/* New personal best callout */}
+  1304→  1304→                  <AnimatePresence>
+  1305→  1305→                    {isNewBest && (
+  1306→  1306→                      <motion.div
+  1307→  1307→                        initial={{ opacity: 0, scale: 0.6, rotate: -6 }}
+  1308→  1308→                        animate={{ opacity: 1, scale: 1, rotate: 0 }}
+  1309→  1309→                        exit={{ opacity: 0 }}
+  1310→  1310→                        className="flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500/30 to-orange-600/30 px-4 py-1.5 text-sm font-black text-amber-200 ring-2 ring-amber-400/60"
+  1311→  1311→                      >
+  1312→  1312→                        <Star className="h-4 w-4 animate-pulse fill-amber-300 text-amber-300" />
+  1313→  1313→                        NEW PERSONAL BEST!
+  1314→  1314→                      </motion.div>
+  1315→  1315→                    )}
+  1316→  1316→                  </AnimatePresence>
+  1317→  1317→
+  1318→  1318→                  {/* Stats breakdown grid */}
+  1319→  1319→                  <div className="grid w-full grid-cols-2 gap-2">
+  1320→  1320→                    <div className="flex flex-col items-center rounded-lg bg-amber-500/10 px-3 py-2 ring-1 ring-amber-400/30">
+  1321→  1321→                      <Trophy className="mb-1 h-4 w-4 text-amber-400" />
+  1322→  1322→                      <span className="text-[9px] uppercase tracking-wider text-amber-200/60">
+  1323→  1323→                        Score
+  1324→  1324→                      </span>
+  1325→  1325→                      <span className="font-mono text-lg font-black text-amber-200">
+  1326→  1326→                        {score}
+  1327→  1327→                      </span>
+  1328→  1328→                    </div>
+  1329→  1329→                    <div className="flex flex-col items-center rounded-lg bg-emerald-500/10 px-3 py-2 ring-1 ring-emerald-400/30">
+  1330→  1330→                      <Hand className="mb-1 h-4 w-4 text-emerald-400" />
+  1331→  1331→                      <span className="text-[9px] uppercase tracking-wider text-emerald-200/60">
+  1332→  1332→                        Freezes
+  1333→  1333→                      </span>
+  1334→  1334→                      <span className="font-mono text-lg font-black text-emerald-200">
+  1335→  1335→                        {freezes}
+  1336→  1336→                      </span>
+  1337→  1337→                    </div>
+  1338→  1338→                    <div className="flex flex-col items-center rounded-lg bg-violet-500/10 px-3 py-2 ring-1 ring-violet-400/30">
+  1339→  1339→                      <Timer className="mb-1 h-4 w-4 text-violet-400" />
+  1340→  1340→                      <span className="text-[9px] uppercase tracking-wider text-violet-200/60">
+  1341→  1341→                        Danced
+  1342→  1342→                      </span>
+  1343→  1343→                      <span className="font-mono text-lg font-black text-violet-200">
+  1344→  1344→                        {danceSeconds.toFixed(1)}s
+  1345→  1345→                      </span>
+  1346→  1346→                    </div>
+  1347→  1347→                    <div className="flex flex-col items-center rounded-lg bg-orange-500/10 px-3 py-2 ring-1 ring-orange-400/30">
+  1348→  1348→                      <Flame className="mb-1 h-4 w-4 text-orange-400" />
+  1349→  1349→                      <span className="text-[9px] uppercase tracking-wider text-orange-200/60">
+  1350→  1350→                        Best combo
+  1351→  1351→                      </span>
+  1352→  1352→                      <span className="font-mono text-lg font-black text-orange-200">
+  1353→  1353→                        {bestCombo}
+  1354→  1354→                      </span>
+  1355→  1355→                    </div>
+  1356→  1356→                  </div>
+  1357→  1357→
+  1358→  1358→                  {/* Best freeze timing bar — shown when freezes > 0 */}
+  1359→  1359→                  {freezes > 0 && (
+  1360→  1360→                    <div className="w-full rounded-lg bg-black/30 p-2.5">
+  1361→  1361→                      <div className="mb-1 flex items-center justify-between text-[9px] uppercase tracking-wider text-amber-300/50">
+  1362→  1362→                        <span>Best reaction</span>
+  1363→  1363→                        <span className="font-mono text-amber-300">
+  1364→  1364→                          {Math.round(bestFreezeTiming * 100)}%
+  1365→  1365→                        </span>
+  1366→  1366→                      </div>
+  1367→  1367→                      <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+  1368→  1368→                        <div
+  1369→  1369→                          className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500"
+  1370→  1370→                          style={{ width: `${bestFreezeTiming * 100}%` }}
+  1371→  1371→                        />
+  1372→  1372→                      </div>
+  1373→  1373→                    </div>
+  1374→  1374→                  )}
+  1375→  1375→
+  1376→  1376→                  {/* Round history timeline — shows each freeze's timing */}
+  1377→  1377→                  {roundHistory.length > 0 && (
+  1378→  1378→                    <div className="w-full rounded-lg bg-black/30 p-2.5">
+  1379→  1379→                      <div className="mb-1.5 text-center text-[9px] uppercase tracking-wider text-amber-300/50">
+  1380→  1380→                        Freeze history
+  1381→  1381→                      </div>
+  1382→  1382→                      <div className="flex flex-wrap items-center justify-center gap-1">
+  1383→  1383→                        {roundHistory.map((r, i) => (
+  1384→  1384→                          <span
+  1385→  1385→                            key={i}
+  1386→  1386→                            title={`Round ${r.round}: ${r.timing === 'perfect' ? 'PERFECT' : r.timing === 'good' ? 'Good' : 'OK'}`}
+  1387→  1387→                            className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold ring-1 ${
+  1388→  1388→                              r.timing === 'perfect'
+  1389→  1389→                                ? 'bg-amber-500/30 text-amber-200 ring-amber-400/50'
+  1390→  1390→                                : r.timing === 'good'
+  1391→  1391→                                  ? 'bg-emerald-500/20 text-emerald-200 ring-emerald-400/40'
+  1392→  1392→                                  : 'bg-slate-500/20 text-slate-300 ring-slate-400/30'
+  1393→  1393→                            }`}
+  1394→  1394→                          >
+  1395→  1395→                            {r.round}
+  1396→  1396→                          </span>
+  1397→  1397→                        ))}
+  1398→  1398→                      </div>
+  1399→  1399→                    </div>
+  1400→  1400→                  )}
+  1401→  1401→
+  1402→  1402→                  {/* Rank + personal best row */}
+  1403→  1403→                  <div className="flex flex-wrap items-center justify-center gap-2 text-center">
+  1404→  1404→                    {lastSavedRank && lastSavedRank <= 20 && (
+  1405→  1405→                      <Badge className="bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/40">
+  1406→  1406→                        <Crown className="mr-1 h-3 w-3" />#{lastSavedRank} on leaderboard
+  1407→  1407→                      </Badge>
+  1408→  1408→                    )}
+  1409→  1409→                    {personalBest !== null && (
+  1410→  1410→                      <Badge
+  1411→  1411→                        className={`ring-1 ${
+  1412→  1412→                          isNewBest
+  1413→  1413→                            ? 'bg-amber-500/20 text-amber-200 ring-amber-400/40'
+  1414→  1414→                            : 'bg-slate-500/15 text-slate-300 ring-slate-400/30'
+  1415→  1415→                        }`}
+  1416→  1416→                      >
+  1417→  1417→                        <TrendingUp className="mr-1 h-3 w-3" />
+  1418→  1418→                        {isNewBest ? 'Record broken!' : `Best: ${personalBest}`}
+  1419→  1419→                      </Badge>
+  1420→  1420→                    )}
+  1421→  1421→                  </div>
+  1422→  1422→                  <div className="flex w-full gap-2">
+  1423→  1423→                    <Button
+  1424→  1424→                      onClick={() => startGame(dailyMode)}
+  1425→  1425→                      className={`flex-1 ${dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-amber-800 hover:bg-amber-700'}`}
+  1426→  1426→                    >
+  1427→  1427→                      <RotateCcw className="mr-1 h-4 w-4" /> Play again
+  1428→  1428→                    </Button>
+  1429→  1429→                    <Button
+  1430→  1430→                      onClick={shareScore}
+  1431→  1431→                      variant="outline"
+  1432→  1432→                      className="border-amber-700/50 bg-amber-900/20 text-amber-200 hover:bg-amber-900/40 hover:text-amber-100"
+  1433→  1433→                      title="Share score"
+  1434→  1434→                    >
+  1435→  1435→                      {shared ? (
+  1436→  1436→                        <>
+  1437→  1437→                          <Check className="mr-1 h-4 w-4" /> Copied!
+  1438→  1438→                        </>
+  1439→  1439→                      ) : (
+  1440→  1440→                        <>
+  1441→  1441→                          <Share2 className="mr-1 h-4 w-4" /> Share
+  1442→  1442→                        </>
+  1443→  1443→                      )}
+  1444→  1444→                    </Button>
+  1445→  1445→                  </div>
+  1446→  1446→                  {/* Lifetime session stats */}
+  1447→  1447→                  {sessionStats.games > 0 && (
+  1448→  1448→                    <div className="flex w-full items-center justify-center gap-3 rounded-lg bg-black/30 px-3 py-2 text-[10px] text-amber-300/50">
+  1449→  1449→                      <span>🎮 {sessionStats.games} games</span>
+  1450→  1450→                      <span>·</span>
+  1451→  1451→                      <span>🥭 {sessionStats.totalFreezes} freezes</span>
+  1452→  1452→                      <span>·</span>
+  1453→  1453→                      <span>⏱ {sessionStats.totalDanceSeconds}s</span>
+  1454→  1454→                    </div>
+  1455→  1455→                  )}
+  1456→  1456→                </motion.div>
+  1457→  1457→              )}
+  1458→  1458→            </AnimatePresence>
+  1459→  1459→          </div>
+  1460→  1460→        </section>
+  1461→  1461→
+  1462→  1462→        {/* ===== LEADERBOARD ===== */}
+  1463→  1463→        <aside className="relative flex flex-col gap-3">
+  1464→  1464→          <Card className="flex flex-1 flex-col border-amber-900/40 bg-black/30 backdrop-blur-sm">
+  1465→  1465→            <div className="flex items-center justify-between border-b border-amber-900/40 px-4 py-3">
+  1466→  1466→              <div className="flex items-center gap-2">
+  1467→  1467→                <Trophy className="h-5 w-5 text-amber-400" />
+  1468→  1468→                <h2 className="text-sm font-bold tracking-wide text-amber-200">
+  1469→  1469→                  LEADERBOARD
+  1470→  1470→                </h2>
+  1471→  1471→              </div>
+  1472→  1472→              <div className="flex items-center gap-1">
+  1473→  1473→                <Button
+  1474→  1474→                  variant="ghost"
+  1475→  1475→                  size="sm"
+  1476→  1476→                  onClick={() => setShowAchPanel(true)}
+  1477→  1477→                  className="h-7 gap-1 px-2 text-xs text-amber-300/70 hover:text-amber-200"
+  1478→  1478→                  title="Achievements"
+  1479→  1479→                >
+  1480→  1480→                  <Medal className="h-3 w-3" />
+  1481→  1481→                  <span className="hidden sm:inline">
+  1482→  1482→                    {unlockedAch.size}/{ACHIEVEMENTS.length}
+  1483→  1483→                  </span>
+  1484→  1484→                </Button>
+  1485→  1485→                <Button
+  1486→  1486→                  variant="ghost"
+  1487→  1487→                  size="sm"
+  1488→  1488→                  onClick={() => fetchLeaderboard(leaderboardFilter)}
+  1489→  1489→                  className="h-7 px-2 text-xs text-amber-300/70 hover:text-amber-200"
+  1490→  1490→                >
+  1491→  1491→                  <RotateCcw className="h-3 w-3" />
+  1492→  1492→                </Button>
+  1493→  1493→              </div>
+  1494→  1494→              {/* Filter tabs */}
+  1495→  1495→              <div className="flex gap-1 border-t border-amber-900/30 px-2 py-1.5">
+  1496→  1496→                {(['all', 'today'] as const).map((f) => (
+  1497→  1497→                  <button
+  1498→  1498→                    key={f}
+  1499→  1499→                    type="button"
+  1500→  1500→                    onClick={() => setLeaderboardFilter(f)}
+  1501→  1501→                    className={`rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-all ${
+  1502→  1502→                      leaderboardFilter === f
+  1503→  1503→                        ? 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40'
+  1504→  1504→                        : 'text-amber-300/50 hover:bg-amber-900/20 hover:text-amber-200'
+  1505→  1505→                    }`}
+  1506→  1506→                  >
+  1507→  1507→                    {f === 'all' ? 'All' : 'Today'}
+  1508→  1508→                  </button>
+  1509→  1509→                ))}
+  1510→  1510→              </div>
+  1511→  1511→            </div>
+  1512→  1512→            <ScrollArea className="flex-1">
+  1513→  1513→              <div className="px-2 py-2">
+  1514→  1514→                {leaderboard.length === 0 ? (
+  1515→  1515→                  <div className="px-3 py-10 text-center text-xs text-amber-300/50">
+  1516→  1516→                    No records yet.
+  1517→  1517→                    <br />
+  1518→  1518→                    Be the first!
+  1519→  1519→                  </div>
+  1520→  1520→                ) : (
+  1521→  1521→                  <ul className="flex flex-col gap-1">
+  1522→  1522→                    {leaderboard.map((s, i) => {
+  1523→  1523→                      const isMyBest =
+  1524→  1524→                        personalBest !== null && s.score === personalBest
+  1525→  1525→                      return (
+  1526→  1526→                        <li
+  1527→  1527→                          key={s.id}
+  1528→  1528→                          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+  1529→  1529→                            i === 0
+  1530→  1530→                              ? 'bg-amber-500/15 ring-1 ring-amber-400/30'
+  1531→  1531→                              : i === 1
+  1532→  1532→                                ? 'bg-slate-300/10'
+  1533→  1533→                                : i === 2
+  1534→  1534→                                  ? 'bg-orange-700/15'
+  1535→  1535→                                  : 'hover:bg-white/5'
+  1536→  1536→                          } ${isMyBest ? 'ring-1 ring-cyan-400/50' : ''}`}
+  1537→  1537→                        >
+  1538→  1538→                          <span
+  1539→  1539→                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+  1540→  1540→                              i === 0
+  1541→  1541→                                ? 'bg-amber-400 text-amber-950'
+  1542→  1542→                                : i === 1
+  1543→  1543→                                  ? 'bg-slate-300 text-slate-900'
+  1544→  1544→                                  : i === 2
+  1545→  1545→                                    ? 'bg-orange-600 text-orange-50'
+  1546→  1546→                                    : 'bg-white/10 text-amber-200/70'
+  1547→  1547→                            }`}
+  1548→  1548→                          >
+  1549→  1549→                            {i + 1}
+  1550→  1550→                          </span>
+  1551→  1551→                          <div className="flex min-w-0 flex-1 flex-col">
+  1552→  1552→                            <span className="flex items-center gap-1 truncate font-semibold text-amber-100">
+  1553→  1553→                              {s.playerName}
+  1554→  1554→                              {isMyBest && (
+  1555→  1555→                                <Star className="h-3 w-3 shrink-0 fill-cyan-300 text-cyan-300" />
+  1556→  1556→                              )}
+  1557→  1557→                            </span>
+  1558→  1558→                            <span className="text-[10px] text-amber-300/60">
+  1559→  1559→                              {s.freezes} freezes · {s.danceSeconds}s
+  1560→  1560→                            </span>
+  1561→  1561→                          </div>
+  1562→  1562→                          <span className="shrink-0 font-mono text-sm font-bold text-amber-300">
+  1563→  1563→                            {s.score}
+  1564→  1564→                          </span>
+  1565→  1565→                        </li>
+  1566→  1566→                      )
+  1567→  1567→                    })}
+  1568→  1568→                  </ul>
+  1569→  1569→                )}
+  1570→  1570→              </div>
+  1571→  1571→            </ScrollArea>
+  1572→  1572→            <Separator className="bg-amber-900/30" />
+  1573→  1573→            <div className="px-4 py-2 text-center text-[10px] text-amber-300/50">
+  1574→  1574→              Score = freezes × 100 × multiplier + seconds
+  1575→  1575→            </div>
+  1576→  1576→          </Card>
+  1577→  1577→          {/* Lifetime session stats card */}
+  1578→  1578→          {sessionStats.games > 0 && (
+  1579→  1579→            <Card className="border-amber-900/30 bg-black/30 p-3 backdrop-blur-sm">
+  1580→  1580→              <div className="mb-2 flex items-center gap-1.5">
+  1581→  1581→                <TrendingUp className="h-3.5 w-3.5 text-amber-400" />
+  1582→  1582→                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200/70">
+  1583→  1583→                  All time
+  1584→  1584→                </span>
+  1585→  1585→              </div>
+  1586→  1586→              <div className="grid grid-cols-3 gap-2 text-center">
+  1587→  1587→                <div className="flex flex-col">
+  1588→  1588→                  <span className="font-mono text-base font-black text-amber-200">
+  1589→  1589→                    {sessionStats.games}
+  1590→  1590→                  </span>
+  1591→  1591→                  <span className="text-[9px] text-amber-300/50">games</span>
+  1592→  1592→                </div>
+  1593→  1593→                <div className="flex flex-col">
+  1594→  1594→                  <span className="font-mono text-base font-black text-emerald-200">
+  1595→  1595→                    {sessionStats.totalFreezes}
+  1596→  1596→                  </span>
+  1597→  1597→                  <span className="text-[9px] text-amber-300/50">freezes</span>
+  1598→  1598→                </div>
+  1599→  1599→                <div className="flex flex-col">
+  1600→  1600→                  <span className="font-mono text-base font-black text-violet-200">
+  1601→  1601→                    {sessionStats.totalDanceSeconds}s
+  1602→  1602→                  </span>
+  1603→  1603→                  <span className="text-[9px] text-amber-300/50">danced</span>
+  1604→  1604→                </div>
+  1605→  1605→              </div>
+  1606→  1606→            </Card>
+  1607→  1607→          )}
+  1608→  1608→        </aside>
+  1609→  1609→      </main>
+  1610→  1610→
+  1611→  1611→      {/* ===== FOOTER ===== */}
+  1612→  1612→      <footer className="relative z-10 mt-auto border-t border-amber-900/40 bg-black/30 backdrop-blur-sm">
+  1613→  1613→        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 text-xs text-amber-300/60">
+  1614→  1614→          <div className="flex flex-col items-center justify-between gap-2 sm:flex-row sm:text-left">
+  1615→  1615→            <span>
+  1616→  1616→              🥭 Relapa the ant conductor commands the stage. Freeze when he
+  1617→  1617→              stops!
+  1618→  1618→            </span>
+  1619→  1619→            <span className="flex items-center gap-3">
+  1620→  1620→              <span className="flex items-center gap-1.5">
+  1621→  1621→                <Music2 className="h-3 w-3" /> Real-time music
+  1622→  1622→              </span>
+  1623→  1623→            </span>
+  1624→  1624→          </div>
+  1625→  1625→          {/* keyboard shortcuts row */}
+  1626→  1626→          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-amber-900/20 pt-2 text-center text-[10px] text-amber-300/40">
+  1627→  1627→            <span className="flex items-center gap-1">
+  1628→  1628→              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
+  1629→  1629→                SPACE
+  1630→  1630→              </kbd>
+  1631→  1631→              freeze
+  1632→  1632→            </span>
+  1633→  1633→            <span className="flex items-center gap-1">
+  1634→  1634→              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
+  1635→  1635→                P
+  1636→  1636→              </kbd>
+  1637→  1637→              /
+  1638→  1638→              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
+  1639→  1639→                Esc
+  1640→  1640→              </kbd>
+  1641→  1641→              pause
+  1642→  1642→            </span>
+  1643→  1643→            <span className="flex items-center gap-1">
+  1644→  1644→              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
+  1645→  1645→                Enter
+  1646→  1646→              </kbd>
+  1647→  1647→              start
+  1648→  1648→            </span>
+  1649→  1649→            <span className="flex items-center gap-1">
+  1650→  1650→              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
+  1651→  1651→                D
+  1652→  1652→              </kbd>
+  1653→  1653→              challenge
+  1654→  1654→            </span>
+  1655→  1655→            <span className="flex items-center gap-1">
+  1656→  1656→              <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">
+  1657→  1657→                M
+  1658→  1658→              </kbd>
+  1659→  1659→              sound
+  1660→  1660→            </span>
+  1661→  1661→          </div>
+  1662→  1662→        </div>
+  1663→  1663→      </footer>
+  1664→  1664→    </div>
+  1665→  1665→  )
+  1666→  1666→}
+  1667→  1667→
+  1668→  1668→/* ---------- sub components ---------- */
+  1669→  1669→
+  1670→  1670→function StatChip({
+  1671→  1671→  icon,
+  1672→  1672→  label,
+  1673→  1673→  value,
+  1674→  1674→  tone,
+  1675→  1675→  big,
+  1676→  1676→}: {
+  1677→  1677→  icon: React.ReactNode
+  1678→  1678→  label: string
+  1679→  1679→  value: string
+  1680→  1680→  tone: 'amber' | 'emerald' | 'violet' | 'rose'
+  1681→  1681→  big?: boolean
+  1682→  1682→}) {
+  1683→  1683→  const tones: Record<string, string> = {
+  1684→  1684→    amber: 'from-amber-500/20 to-amber-700/10 text-amber-200 ring-amber-400/30',
+  1685→  1685→    emerald:
+  1686→  1686→      'from-emerald-500/20 to-emerald-700/10 text-emerald-200 ring-emerald-400/30',
+  1687→  1687→    violet:
+  1688→  1688→      'from-violet-500/20 to-violet-700/10 text-violet-200 ring-violet-400/30',
+  1689→  1689→    rose: 'from-rose-500/20 to-rose-700/10 text-rose-200 ring-rose-400/30',
+  1690→  1690→  }
+  1691→  1691→  return (
+  1692→  1692→    <div
+  1693→  1693→      className={`flex items-center gap-2 rounded-xl bg-gradient-to-b ${tones[tone]} px-3 py-1.5 ring-1 backdrop-blur-sm`}
+  1694→  1694→    >
+  1695→  1695→      <span className={big ? 'h-5 w-5' : 'h-4 w-4'}>{icon}</span>
+  1696→  1696→      <div className="flex flex-col leading-none">
+  1697→  1697→        <span className="text-[9px] uppercase tracking-wider opacity-70">
+  1698→  1698→          {label}
+  1699→  1699→        </span>
+  1700→  1700→        <span
+  1701→  1701→          className={`font-mono font-bold ${big ? 'text-base' : 'text-sm'}`}
+  1702→  1702→        >
+  1703→  1703→          {value}
+  1704→  1704→        </span>
+  1705→  1705→      </div>
+  1706→  1706→    </div>
+  1707→  1707→  )
+  1708→  1708→}
+  1709→  1709→
+  1710→  1710→function FloatingNotes() {
+  1711→  1711→  const notes = ['♪', '♫', '♩', '♬', '🥭']
+  1712→  1712→  return (
+  1713→  1713→    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+  1714→  1714→      {Array.from({ length: 6 }).map((_, i) => {
+  1715→  1715→        const left = 15 + Math.random() * 70
+  1716→  1716→        const delay = Math.random() * 2
+  1717→  1717→        const dur = 2.5 + Math.random() * 2
+  1718→  1718→        const sym = notes[i % notes.length]
+  1719→  1719→        return (
+  1720→  1720→          <motion.span
+  1721→  1721→            key={i}
+  1722→  1722→            className="absolute bottom-16 text-lg text-amber-300/50"
+  1723→  1723→            style={{ left: `${left}%` }}
+  1724→  1724→            initial={{ y: 0, opacity: 0 }}
+  1725→  1725→            animate={{ y: -160, opacity: [0, 1, 0] }}
+  1726→  1726→            transition={{
+  1727→  1727→              duration: dur,
+  1728→  1728→              delay,
+  1729→  1729→              repeat: Infinity,
+  1730→  1730→              ease: 'easeOut',
+  1731→  1731→            }}
+  1732→  1732→          >
+  1733→  1733→            {sym}
+  1734→  1734→          </motion.span>
+  1735→  1735→        )
+  1736→  1736→      })}
+  1737→  1737→    </div>
+  1738→  1738→  )
+  1739→  1739→}
+  1740→  1740→
+  1741→  1741→function ConfettiBurst() {
+  1742→  1742→  const colors = [
+  1743→  1743→    '#fbbf24',
+  1744→  1744→    '#f97316',
+  1745→  1745→    '#ef4444',
+  1746→  1746→    '#ec4899',
+  1747→  1747→    '#a855f7',
+  1748→  1748→    '#22d3ee',
+  1749→  1749→    '#4ade80',
+  1750→  1750→  ]
+  1751→  1751→  const pieces = Array.from({ length: 60 })
+  1752→  1752→  return (
+  1753→  1753→    <motion.div
+  1754→  1754→      className="pointer-events-none fixed inset-0 z-50 overflow-hidden"
+  1755→  1755→      initial={{ opacity: 1 }}
+  1756→  1756→      exit={{ opacity: 0 }}
+  1757→  1757→      transition={{ duration: 0.4 }}
+  1758→  1758→    >
+  1759→  1759→      {/* celebratory banner */}
+  1760→  1760→      <motion.div
+  1761→  1761→        className="absolute left-1/2 top-20 -translate-x-1/2 rounded-full bg-amber-500/20 px-5 py-2 text-lg font-black text-amber-200 ring-2 ring-amber-400/50 backdrop-blur-sm"
+  1762→  1762→        initial={{ scale: 0, rotate: -8 }}
+  1763→  1763→        animate={{ scale: 1, rotate: 0 }}
+  1764→  1764→        transition={{ type: 'spring', stiffness: 280, damping: 14 }}
+  1765→  1765→      >
+  1766→  1766→        <PartyPopper className="mr-2 inline h-5 w-5" />
+  1767→  1767→        AWESOME!
+  1768→  1768→      </motion.div>
+  1769→  1769→      {pieces.map((_, i) => {
+  1770→  1770→        const left = Math.random() * 100
+  1771→  1771→        const color = colors[i % colors.length]
+  1772→  1772→        const delay = Math.random() * 0.4
+  1773→  1773→        const dur = 1.8 + Math.random() * 1.4
+  1774→  1774→        const drift = (Math.random() - 0.5) * 120
+  1775→  1775→        const size = 6 + Math.random() * 8
+  1776→  1776→        const isCircle = i % 3 === 0
+  1777→  1777→        return (
+  1778→  1778→          <motion.span
+  1779→  1779→            key={i}
+  1780→  1780→            className="absolute top-0"
+  1781→  1781→            style={{
+  1782→  1782→              left: `${left}%`,
+  1783→  1783→              width: size,
+  1784→  1784→              height: isCircle ? size : size * 0.5,
+  1785→  1785→              backgroundColor: color,
+  1786→  1786→              borderRadius: isCircle ? '50%' : '2px',
+  1787→  1787→            }}
+  1788→  1788→            initial={{ y: -20, x: 0, rotate: 0, opacity: 1 }}
+  1789→  1789→            animate={{ y: '110vh', x: drift, rotate: 720, opacity: [1, 1, 0.8, 0] }}
+  1790→  1790→            transition={{
+  1791→  1791→              duration: dur,
+  1792→  1792→              delay,
+  1793→  1793→              ease: 'easeIn',
+  1794→  1794→            }}
+  1795→  1795→          />
+  1796→  1796→        )
+  1797→  1797→      })}
+  1798→  1798→    </motion.div>
+  1799→  1799→  )
+  1800→  1800→}
+  1801→  1801→
+  1802→  1802→/* Animated music equalizer — visual feedback that music is playing.
+  1803→  1803→   Bars pulse via CSS; when `active` is false they sit low. */
+  1804→  1804→function Equalizer({ active, muted }: { active: boolean; muted: boolean }) {
+  1805→  1805→  const bars = [0, 1, 2, 3, 4]
+  1806→  1806→  return (
+  1807→  1807→    <div
+  1808→  1808→      className={`flex h-8 items-end gap-0.5 rounded-md bg-black/30 px-1.5 py-1 ring-1 ring-amber-900/40 ${
+  1809→  1809→        muted ? 'opacity-50' : ''
+  1810→  1810→      }`}
+  1811→  1811→      title={muted ? 'Sound off' : 'Music playing'}
+  1812→  1812→      aria-hidden="true"
+  1813→  1813→    >
+  1814→  1814→      {bars.map((b) => (
+  1815→  1815→        <motion.span
+  1816→  1816→          key={b}
+  1817→  1817→          className="w-1 rounded-full bg-gradient-to-t from-amber-600 to-amber-300"
+  1818→  1818→          animate={
+  1819→  1819→            active
+  1820→  1820→              ? { height: [6, 20, 10, 24, 8] }
+  1821→  1821→              : { height: 4 }
+  1822→  1822→          }
+  1823→  1823→          transition={{
+  1824→  1824→            duration: 0.5 + b * 0.08,
+  1825→  1825→            repeat: Infinity,
+  1826→  1826→            repeatType: 'mirror',
+  1827→  1827→            ease: 'easeInOut',
+  1828→  1828→            delay: b * 0.05,
+  1829→  1829→          }}
+  1830→  1830→          style={{ height: 4 }}
+  1831→  1831→        />
+  1832→  1832→      ))}
+  1833→  1833→    </div>
+  1834→  1834→  )
+  1835→  1835→}
+  1836→  1836→
+  1837→  1837→/* Floating dust motes for atmospheric depth in the stage. */
+  1838→  1838→function DustMotes() {
+  1839→  1839→  const motes = Array.from({ length: 14 })
+  1840→  1840→  return (
+  1841→  1841→    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+  1842→  1842→      {motes.map((_, i) => {
+  1843→  1843→        const left = Math.random() * 100
+  1844→  1844→        const top = 10 + Math.random() * 80
+  1845→  1845→        const size = 1 + Math.random() * 2.5
+  1846→  1846→        const dur = 6 + Math.random() * 6
+  1847→  1847→        const delay = Math.random() * 6
+  1848→  1848→        return (
+  1849→  1849→          <motion.span
+  1850→  1850→            key={i}
+  1851→  1851→            className="absolute rounded-full bg-amber-200/30"
+  1852→  1852→            style={{ left: `${left}%`, top: `${top}%`, width: size, height: size }}
+  1853→  1853→            animate={{ y: [0, -24, 0], x: [0, 8, 0], opacity: [0, 0.6, 0] }}
+  1854→  1854→            transition={{ duration: dur, delay, repeat: Infinity, ease: 'easeInOut' }}
+  1855→  1855→          />
+  1856→  1856→        )
+  1857→  1857→      })}
+  1858→  1858→    </div>
+  1859→  1859→  )
+  1860→  1860→}
+  1861→  1861→
+  1862→  1862→/* Achievement toast — slides in from the top when an achievement unlocks. */
+  1863→  1863→function AchievementToast({ achId }: { achId: string | null }) {
+  1864→  1864→  const ach = achId ? getAchievement(achId) : null
+  1865→  1865→  return (
+  1866→  1866→    <AnimatePresence>
+  1867→  1867→      {ach && (
+  1868→  1868→        <motion.div
+  1869→  1869→          key={ach.id}
+  1870→  1870→          initial={{ opacity: 0, y: -40, scale: 0.9 }}
+  1871→  1871→          animate={{ opacity: 1, y: 0, scale: 1 }}
+  1872→  1872→          exit={{ opacity: 0, y: -40, scale: 0.9 }}
+  1873→  1873→          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+  1874→  1874→          className="pointer-events-none fixed left-1/2 top-16 z-50 -translate-x-1/2"
+  1875→  1875→        >
+  1876→  1876→          <div className="flex items-center gap-3 rounded-xl border border-amber-400/50 bg-gradient-to-r from-amber-900/80 to-orange-900/80 px-4 py-2.5 shadow-[0_0_30px_-5px_rgba(251,191,36,0.6)] backdrop-blur-sm">
+  1877→  1877→            <motion.span
+  1878→  1878→              className="text-2xl"
+  1879→  1879→              animate={{ rotate: [0, -10, 10, 0], scale: [1, 1.2, 1] }}
+  1880→  1880→              transition={{ duration: 0.6, repeat: Infinity }}
+  1881→  1881→            >
+  1882→  1882→              {ach.icon}
+  1883→  1883→            </motion.span>
+  1884→  1884→            <div className="flex flex-col leading-tight">
+  1885→  1885→              <span className="text-[9px] uppercase tracking-wider text-amber-300/70">
+  1886→  1886→                Achievement!
+  1887→  1887→              </span>
+  1888→  1888→              <span className="text-sm font-black text-amber-100">
+  1889→  1889→                {ach.title}
+  1890→  1890→              </span>
+  1891→  1891→              <span className="text-[10px] text-amber-200/60">{ach.desc}</span>
+  1892→  1892→            </div>
+  1893→  1893→          </div>
+  1894→  1894→        </motion.div>
+  1895→  1895→      )}
+  1896→  1896→    </AnimatePresence>
+  1897→  1897→  )
+  1898→  1898→}
+  1899→  1899→
+  1900→  1900→/* Achievements panel — modal showing all achievements (locked/unlocked). */
+  1901→  1901→function AchievementsPanel({
+  1902→  1902→  unlocked,
+  1903→  1903→  onClose,
+  1904→  1904→}: {
+  1905→  1905→  unlocked: Set<string>
+  1906→  1906→  onClose: () => void
+  1907→  1907→}) {
+  1908→  1908→  return (
+  1909→  1909→    <motion.div
+  1910→  1910→      initial={{ opacity: 0 }}
+  1911→  1911→      animate={{ opacity: 1 }}
+  1912→  1912→      exit={{ opacity: 0 }}
+  1913→  1913→      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+  1914→  1914→      onClick={onClose}
+  1915→  1915→    >
+  1916→  1916→      <motion.div
+  1917→  1917→        initial={{ scale: 0.9, y: 20 }}
+  1918→  1918→        animate={{ scale: 1, y: 0 }}
+  1919→  1919→        exit={{ scale: 0.9, y: 20 }}
+  1920→  1920→        transition={{ type: 'spring', stiffness: 240, damping: 22 }}
+  1921→  1921→        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-amber-900/50 bg-[#1a1410] shadow-2xl"
+  1922→  1922→        onClick={(e) => e.stopPropagation()}
+  1923→  1923→      >
+  1924→  1924→        <div className="flex items-center justify-between border-b border-amber-900/40 px-5 py-3">
+  1925→  1925→          <div className="flex items-center gap-2">
+  1926→  1926→            <Medal className="h-5 w-5 text-amber-400" />
+  1927→  1927→            <h2 className="text-base font-black text-amber-200">
+  1928→  1928→              ACHIEVEMENTS
+  1929→  1929→            </h2>
+  1930→  1930→            <Badge className="bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40">
+  1931→  1931→              {unlocked.size}/{ACHIEVEMENTS.length}
+  1932→  1932→            </Badge>
+  1933→  1933→          </div>
+  1934→  1934→          <button
+  1935→  1935→            onClick={onClose}
+  1936→  1936→            aria-label="Close"
+  1937→  1937→            className="flex h-7 w-7 items-center justify-center rounded-lg text-amber-300/70 transition-colors hover:bg-amber-900/40 hover:text-white"
+  1938→  1938→          >
+  1939→  1939→            <X className="h-4 w-4" />
+  1940→  1940→          </button>
+  1941→  1941→        </div>
+  1942→  1942→        <ScrollArea className="flex-1">
+  1943→  1943→          <div className="grid grid-cols-1 gap-2 p-4">
+  1944→  1944→            {ACHIEVEMENTS.map((a) => {
+  1945→  1945→              const isUnlocked = unlocked.has(a.id)
+  1946→  1946→              return (
+  1947→  1947→                <motion.div
+  1948→  1948→                  key={a.id}
+  1949→  1949→                  initial={{ opacity: 0, x: -10 }}
+  1950→  1950→                  animate={{ opacity: 1, x: 0 }}
+  1951→  1951→                  className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+  1952→  1952→                    isUnlocked
+  1953→  1953→                      ? 'border-amber-400/40 bg-amber-500/10'
+  1954→  1954→                      : 'border-amber-900/30 bg-black/30 opacity-60'
+  1955→  1955→                  }`}
+  1956→  1956→                >
+  1957→  1957→                  <span
+  1958→  1958→                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${
+  1959→  1959→                      isUnlocked
+  1960→  1960→                        ? 'bg-amber-500/20 ring-1 ring-amber-400/40'
+  1961→  1961→                        : 'bg-black/30 grayscale'
+  1962→  1962→                    }`}
+  1963→  1963→                  >
+  1964→  1964→                    {isUnlocked ? a.icon : '🔒'}
+  1965→  1965→                  </span>
+  1966→  1966→                  <div className="flex min-w-0 flex-1 flex-col">
+  1967→  1967→                    <span
+  1968→  1968→                      className={`text-sm font-bold ${
+  1969→  1969→                        isUnlocked ? 'text-amber-100' : 'text-amber-200/50'
+  1970→  1970→                      }`}
+  1971→  1971→                    >
+  1972→  1972→                      {a.title}
+  1973→  1973→                    </span>
+  1974→  1974→                    <span className="text-[11px] text-amber-300/50">
+  1975→  1975→                      {a.desc}
+  1976→  1976→                    </span>
+  1977→  1977→                  </div>
+  1978→  1978→                  {isUnlocked && (
+  1979→  1979→                    <Star className="h-4 w-4 shrink-0 fill-amber-300 text-amber-300" />
+  1980→  1980→                  )}
+  1981→  1981→                </motion.div>
+  1982→  1982→              )
+  1983→  1983→            })}
+  1984→  1984→          </div>
+  1985→  1985→        </ScrollArea>
+  1986→  1986→        <div className="border-t border-amber-900/40 px-5 py-2 text-center text-[10px] text-amber-300/50">
+  1987→  1987→          Achievements unlock automatically as you play
+  1988→  1988→        </div>
+  1989→  1989→      </motion.div>
+  1990→  1990→    </motion.div>
+  1991→  1991→  )
+  1992→  1992→}
+  1993→  1993→
+  1994→  1994→/* First-play tutorial overlay — explains the game with 3 steps. */
+  1995→  1995→function TutorialOverlay({ onClose }: { onClose: () => void }) {
+  1996→  1996→  const steps = [
+  1997→  1997→    {
+  1998→  1998→      icon: '🎵',
+  1999→  1999→      title: 'Relapa conducts',
+  2000→  2000→      desc: 'Relapa the ant conductor does the floss dance. Watch the timer at the top!',
+
+[showing lines 1-2000 of 2002; use offset=2001 with limit to continue reading]

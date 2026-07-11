@@ -22,6 +22,14 @@ export class ChuckyEngine {
   private volume = 0.5
   private initialized = false
 
+  // ── Beat system ──────────────────────────────────────────────────────────
+  private beatTimer: ReturnType<typeof setTimeout> | null = null
+  private beatStartTime = 0
+  // Start at 100 BPM, speed up to 200 BPM over ~5 minutes
+  private static readonly BPM_START = 100
+  private static readonly BPM_MAX = 200
+  private static readonly BPM_ACCEL = 3 // +1 BPM every 3 seconds
+
   /** Call from a user gesture (click) to satisfy autoplay policies. */
   async init() {
     if (this.initialized) return
@@ -87,6 +95,9 @@ export class ChuckyEngine {
     this.source.loop = true
     this.source.connect(this.musicGain)
     this.source.start(0)
+
+    // Start the beat system (kick drum + tempo tracking)
+    this.startBeats()
   }
 
   /** Abruptly stop the music (the FREEZE moment). */
@@ -97,6 +108,66 @@ export class ChuckyEngine {
       this.source.stop()
     } catch { /* already stopped */ }
     this.source = null
+    this.stopBeats()
+  }
+
+  // ── Beat system ──────────────────────────────────────────────────────────
+
+  /** Current beat interval in ms, based on elapsed time since music started. */
+  getBeatInterval(): number {
+    if (!this.beatStartTime) return 600 // 100 BPM default
+    const elapsedSec = (performance.now() - this.beatStartTime) / 1000
+    const bpm = Math.min(
+      ChuckyEngine.BPM_MAX,
+      ChuckyEngine.BPM_START + elapsedSec / ChuckyEngine.BPM_ACCEL
+    )
+    return 60000 / bpm
+  }
+
+  /** Current BPM, for display purposes. */
+  getBPM(): number {
+    return Math.round(60000 / this.getBeatInterval())
+  }
+
+  private startBeats() {
+    this.beatStartTime = performance.now()
+    this.scheduleBeat()
+  }
+
+  private stopBeats() {
+    if (this.beatTimer) {
+      clearTimeout(this.beatTimer)
+      this.beatTimer = null
+    }
+    this.beatStartTime = 0
+  }
+
+  private scheduleBeat() {
+    if (!this.playing) return
+    this.kickDrum()
+    const interval = this.getBeatInterval()
+    this.beatTimer = setTimeout(() => this.scheduleBeat(), interval)
+  }
+
+  /** Synthesize a kick drum hit. */
+  private kickDrum() {
+    if (!this.ctx || !this.sfxGain) return
+    const t = this.ctx.currentTime
+    const osc = this.ctx.createOscillator()
+    const gain = this.ctx.createGain()
+
+    // Pitch sweep from 150Hz down to 50Hz for a kick drum effect
+    osc.frequency.setValueAtTime(150, t)
+    osc.frequency.exponentialRampToValueAtTime(50, t + 0.08)
+
+    gain.gain.setValueAtTime(0.0001, t)
+    gain.gain.exponentialRampToValueAtTime(0.4 * this.volume, t + 0.005)
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15)
+
+    osc.connect(gain)
+    gain.connect(this.sfxGain)
+    osc.start(t)
+    osc.stop(t + 0.2)
   }
 
   private sfxNote(freq: number, time: number, dur: number, type: OscillatorType, vol: number) {
@@ -149,6 +220,7 @@ export class ChuckyEngine {
 
   dispose() {
     this.stop()
+    this.stopBeats()
     if (this.ctx) {
       this.ctx.close().catch(() => {})
       this.ctx = null

@@ -41,7 +41,6 @@ import {
   Star,
   TrendingUp,
   PartyPopper,
-  CalendarDays,
   Share2,
   Music2,
   Check,
@@ -132,14 +131,16 @@ const DIR_BTN_ACTIVE = {
 let _arrowId = 0
 function nextArrowId() { return ++_arrowId }
 
-// Arrow spawn interval (ms) — gets faster with rounds
-function getArrowInterval(round: number): number {
-  return Math.max(700, 1800 - (round - 1) * 120)
+// Arrow spawn interval = current beat interval from the music engine.
+// The beat gradually speeds up over time (100→200 BPM), so arrows
+// spawn faster the longer you dance.
+function getArrowInterval(engine: ChuckyEngine | null): number {
+  return engine?.getBeatInterval() ?? 600
 }
 
-// Arrow hit window (ms) — gets tighter with rounds
-function getArrowHitWindow(round: number): number {
-  return Math.max(500, 1400 - (round - 1) * 100)
+// Arrow hit window = 75% of the beat interval (tighter as tempo rises)
+function getArrowHitWindow(engine: ChuckyEngine | null): number {
+  return Math.round((engine?.getBeatInterval() ?? 600) * 0.75)
 }
 
 // ── Difficulty constants (freeze window) ───────────────────────────────────
@@ -157,38 +158,6 @@ function randMusicDuration(round: number): number {
   const musicMin = Math.max(2500, 4000 - shrink)
   const musicMax = Math.max(4500, 7500 - shrink)
   return musicMin + Math.random() * (musicMax - musicMin)
-}
-
-// ── Daily challenge seeded RNG ────────────────────────────────────────────
-
-function getTodaySeed(): number {
-  const d = new Date()
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed
-  return function () {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = a
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-function dailyMusicDuration(round: number): number {
-  const shrink = Math.min(1500, (round - 1) * 120)
-  const musicMin = Math.max(2500, 4000 - shrink)
-  const musicMax = Math.max(4500, 7500 - shrink)
-  return musicMin + dailyRand() * (musicMax - musicMin)
-}
-
-let _dailyRand: (() => number) | null = null
-function dailyRand(): number {
-  if (!_dailyRand) _dailyRand = mulberry32(getTodaySeed())
-  return _dailyRand()
 }
 
 // ── Player helpers ────────────────────────────────────────────────────────
@@ -225,12 +194,12 @@ export default function TelegramGame() {
   const [state, setState] = useState<GameState>('idle')
   const [danceSeconds, setDanceSeconds] = useState(0)
   const [round, setRound] = useState(1)
+  const [bpm, setBpm] = useState(100)
   const [failReason, setFailReason] = useState<FailReason>(null)
   const [freezeProgress, setFreezeProgress] = useState(1)
   const [lastSavedRank, setLastSavedRank] = useState<number | null>(null)
   const [savedThisRun, setSavedThisRun] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
-  const [dailyMode, setDailyMode] = useState(false)
   const [confetti, setConfetti] = useState(false)
   const [combo, setCombo] = useState(0)
   const [bestCombo, setBestCombo] = useState(0)
@@ -285,7 +254,6 @@ export default function TelegramGame() {
   const stateRef = useRef<GameState>('idle')
   const roundRef = useRef(1)
   const comboRef = useRef(0)
-  const dailyModeRef = useRef(false)
   const soundOnRef = useRef(true)
 
   // Arrow refs
@@ -322,10 +290,18 @@ export default function TelegramGame() {
   useEffect(() => { stateRef.current = state }, [state])
   useEffect(() => { roundRef.current = round }, [round])
   useEffect(() => { comboRef.current = combo }, [combo])
-  useEffect(() => { dailyModeRef.current = dailyMode }, [dailyMode])
   useEffect(() => { playerModeRef.current = playerMode }, [playerMode])
   useEffect(() => { duoPlayersRef.current = duoPlayers }, [duoPlayers])
   useEffect(() => { freezeProgressRef.current = freezeProgress }, [freezeProgress])
+
+  // Update BPM display every 500ms while dancing
+  useEffect(() => {
+    if (state !== 'dancing') return
+    const id = setInterval(() => {
+      setBpm(engineRef.current?.getBPM() ?? 100)
+    }, 500)
+    return () => clearInterval(id)
+  }, [state])
   useEffect(() => { danceSecondsRef.current = danceSeconds }, [danceSeconds])
   useEffect(() => { currentArrowRef.current = currentArrow }, [currentArrow])
 
@@ -364,11 +340,11 @@ export default function TelegramGame() {
 
   // ── Telegram Main Button management ─────────────────────────────────────
 
-  const startGameRef = useRef<(daily?: boolean) => Promise<void>>(async () => {})
+  const startGameRef = useRef<() => Promise<void>>(async () => {})
 
   const startGameFromMainButton = useCallback(() => {
     hapticSelection()
-    startGameRef.current(dailyModeRef.current)
+    startGameRef.current()
   }, [])
 
   useEffect(() => {
@@ -449,7 +425,7 @@ export default function TelegramGame() {
   const spawnSoloArrow = useCallback(() => {
     if (stateRef.current !== 'dancing') return
     const dir = DIRECTIONS[Math.floor(Math.random() * 4)]
-    const win = getArrowHitWindow(roundRef.current)
+    const win = getArrowHitWindow(engineRef.current)
     const arrow: ArrowEvent = { id: nextArrowId(), direction: dir, spawnedAt: performance.now(), hitWindow: win }
     setCurrentArrow(arrow)
 
@@ -468,7 +444,7 @@ export default function TelegramGame() {
         showFlash('Miss! ✗')
         setTimeout(() => setHitFeedback(null), 400)
         // Spawn next via ref to avoid circular dep
-        arrowSpawnTimer.current = setTimeout(() => spawnSoloArrowRef.current(), 300)
+        arrowSpawnTimer.current = setTimeout(() => spawnSoloArrowRef.current(), getArrowInterval(engineRef.current))
       }
     }, win)
   }, [showFlash])
@@ -521,7 +497,7 @@ export default function TelegramGame() {
       setTimeout(() => setHitFeedback(null), 400)
 
       // Spawn next arrow after short delay
-      arrowSpawnTimer.current = setTimeout(() => spawnSoloArrowRef.current(), getArrowInterval(roundRef.current))
+      arrowSpawnTimer.current = setTimeout(() => spawnSoloArrowRef.current(), getArrowInterval(engineRef.current))
     } else {
       // WRONG direction
       setCurrentArrow(null)
@@ -531,7 +507,7 @@ export default function TelegramGame() {
       showFlash('Wrong! ✗')
       setTimeout(() => setHitFeedback(null), 400)
       // Spawn next after slightly longer delay
-      arrowSpawnTimer.current = setTimeout(() => spawnSoloArrowRef.current(), 500)
+      arrowSpawnTimer.current = setTimeout(() => spawnSoloArrowRef.current(), getArrowInterval(engineRef.current))
     }
   }, [showFlash])
 
@@ -543,7 +519,7 @@ export default function TelegramGame() {
     if (!players[playerIdx]?.alive) return
 
     const dir = DIRECTIONS[Math.floor(Math.random() * 4)]
-    const win = getArrowHitWindow(roundRef.current)
+    const win = getArrowHitWindow(engineRef.current)
     const arrow: ArrowEvent = { id: nextArrowId(), direction: dir, spawnedAt: performance.now(), hitWindow: win }
 
     setDuoPlayers(prev => prev.map((p, i) =>
@@ -563,7 +539,7 @@ export default function TelegramGame() {
         setTimeout(() => {
           setDuoPlayers(prev => prev.map((p, i) => i === playerIdx ? { ...p, hitFeedback: null } : p))
         }, 400)
-        duoSpawnTimers.current[playerIdx] = setTimeout(() => spawnDuoArrowRef.current(playerIdx), 300)
+        duoSpawnTimers.current[playerIdx] = setTimeout(() => spawnDuoArrowRef.current(playerIdx), getArrowInterval(engineRef.current))
       }
     }, win)
   }, [])
@@ -634,7 +610,7 @@ export default function TelegramGame() {
         setDuoPlayers(prev => prev.map((p, i) => i === playerIdx ? { ...p, hitFeedback: null } : p))
       }, 400)
 
-      duoSpawnTimers.current[playerIdx] = setTimeout(() => spawnDuoArrowRef.current(playerIdx), getArrowInterval(roundRef.current))
+      duoSpawnTimers.current[playerIdx] = setTimeout(() => spawnDuoArrowRef.current(playerIdx), getArrowInterval(engineRef.current))
     } else {
       setDuoPlayers(prev => prev.map((p, i) =>
         i === playerIdx ? { ...p, currentArrow: null, hitFeedback: 'wrong' as const, combo: 0 } : p
@@ -643,7 +619,7 @@ export default function TelegramGame() {
       setTimeout(() => {
         setDuoPlayers(prev => prev.map((p, i) => i === playerIdx ? { ...p, hitFeedback: null } : p))
       }, 400)
-      duoSpawnTimers.current[playerIdx] = setTimeout(() => spawnDuoArrowRef.current(playerIdx), 500)
+      duoSpawnTimers.current[playerIdx] = setTimeout(() => spawnDuoArrowRef.current(playerIdx), getArrowInterval(engineRef.current))
     }
   }, [showFlash])
 
@@ -802,9 +778,7 @@ export default function TelegramGame() {
 
   const scheduleMusicStop = useCallback(() => {
     if (musicStopTimer.current) clearTimeout(musicStopTimer.current)
-    const dur = dailyModeRef.current
-      ? dailyMusicDuration(roundRef.current)
-      : randMusicDuration(roundRef.current)
+    const dur = randMusicDuration(roundRef.current)
     musicStopTimer.current = setTimeout(() => {
       triggerFreezeRef.current()
     }, dur)
@@ -938,7 +912,7 @@ export default function TelegramGame() {
 
     // Start arrow spawning
     if (playerModeRef.current === 'solo') {
-      setTimeout(() => spawnSoloArrowRef.current(), 500)
+      setTimeout(() => spawnSoloArrowRef.current(), getArrowInterval(engineRef.current))
     } else {
       setTimeout(() => {
         duoPlayersRef.current.forEach((p, i) => { if (p.alive) spawnDuoArrowRef.current(i) })
@@ -949,10 +923,8 @@ export default function TelegramGame() {
   // ── Start game ──────────────────────────────────────────────────────────
 
   const startGame = useCallback(
-    async (daily = false) => {
+    async () => {
       hapticMedium()
-      setDailyMode(daily)
-      _dailyRand = null
       _arrowId = 0
       setDanceSeconds(0)
       setRound(1)
@@ -1064,7 +1036,6 @@ export default function TelegramGame() {
               <span className="text-[9px] uppercase tracking-wider text-amber-300/60">Hits</span>
               <span className="font-mono text-base font-black text-emerald-300">{arrowsHit}</span>
             </div>
-            {dailyMode && <Badge className="bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-400/40 border-0 text-[9px] px-1.5 py-0"><CalendarDays className="mr-0.5 h-3 w-3" />Daily</Badge>}
           </>
         ) : (
           <>
@@ -1073,10 +1044,13 @@ export default function TelegramGame() {
               <span className="font-mono text-base font-black text-violet-300">{round}</span>
             </div>
             <div className="flex flex-col items-center leading-none">
+              <span className="text-[9px] uppercase tracking-wider text-amber-300/60">BPM</span>
+              <span className="font-mono text-base font-black text-cyan-300">{bpm}</span>
+            </div>
+            <div className="flex flex-col items-center leading-none">
               <span className="text-[9px] uppercase tracking-wider text-amber-300/60">Dance</span>
               <span className="font-mono text-base font-black text-emerald-300">{danceSeconds.toFixed(1)}s</span>
             </div>
-            {dailyMode && <Badge className="bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-400/40 border-0 text-[9px] px-1.5 py-0"><CalendarDays className="mr-0.5 h-3 w-3" />Daily</Badge>}
           </>
         )}
       </header>
@@ -1214,11 +1188,6 @@ export default function TelegramGame() {
                     <span className="text-sm font-bold text-amber-100">{playerName}</span>
                   </div>
 
-                  <button type="button" onClick={() => { hapticSelection(); setDailyMode((v) => !v) }} className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-bold transition-all ${dailyMode ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/40' : 'border-amber-900/40 bg-black/30 text-amber-300/60'}`}>
-                    <CalendarDays className="h-4 w-4" /> Daily Challenge
-                    {dailyMode && <Badge className="bg-cyan-500/30 text-cyan-100 border-0">on</Badge>}
-                  </button>
-
                   <p className="text-center text-[11px] leading-snug text-amber-200/60">
                     Tap the matching arrow when it appears!
                     When music stops — DON&apos;T tap anything! 🎯
@@ -1231,7 +1200,7 @@ export default function TelegramGame() {
                   )}
 
                   {!isTelegramApp && (
-                    <Button onClick={() => startGame(dailyMode)} className={`w-full h-12 text-base font-black gap-2 ${dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-amber-800 hover:bg-amber-700'}`}>
+                    <Button onClick={() => startGame()} className={`w-full h-12 text-base font-black gap-2 bg-amber-800 hover:bg-amber-700`}>
                       <Play className="h-5 w-5" /> Start Game
                     </Button>
                   )}
@@ -1249,17 +1218,12 @@ export default function TelegramGame() {
                     </div>
                   </div>
 
-                  <button type="button" onClick={() => { hapticSelection(); setDailyMode((v) => !v) }} className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-bold transition-all ${dailyMode ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/40' : 'border-amber-900/40 bg-black/30 text-amber-300/60'}`}>
-                    <CalendarDays className="h-4 w-4" /> Daily Challenge
-                    {dailyMode && <Badge className="bg-cyan-500/30 text-cyan-100 border-0">on</Badge>}
-                  </button>
-
                   <p className="text-center text-[11px] leading-snug text-amber-200/60">
                     Each player has their own arrows! When music stops — DON&apos;T tap! 🔥
                   </p>
 
                   {!isTelegramApp && (
-                    <Button onClick={() => startGame(dailyMode)} className={`w-full h-12 text-base font-black gap-2 ${dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-amber-800 hover:bg-amber-700'}`}>
+                    <Button onClick={() => startGame()} className={`w-full h-12 text-base font-black gap-2 bg-amber-800 hover:bg-amber-700`}>
                       <Play className="h-5 w-5" /> Start Duel
                     </Button>
                   )}
@@ -1324,7 +1288,7 @@ export default function TelegramGame() {
               )}
 
               <div className="flex w-full gap-2">
-                <Button onClick={() => startGame(dailyMode)} className={`flex-1 h-11 text-sm font-black ${dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-amber-800 hover:bg-amber-700'}`}>
+                <Button onClick={() => startGame()} className={`flex-1 h-11 text-sm font-black bg-amber-800 hover:bg-amber-700`}>
                   <RotateCcw className="mr-1.5 h-4 w-4" /> Play Again
                 </Button>
                 <Button onClick={shareScore} variant="outline" className="h-11 border-amber-700/50 bg-amber-900/20 px-4 text-amber-200 hover:bg-amber-900/40 hover:text-amber-100">
@@ -1386,7 +1350,7 @@ export default function TelegramGame() {
                 })}
               </div>
 
-              <Button onClick={() => startGame(dailyMode)} className={`w-full h-11 text-sm font-black ${dailyMode ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-amber-800 hover:bg-amber-700'}`}>
+              <Button onClick={() => startGame()} className={`w-full h-11 text-sm font-black bg-amber-800 hover:bg-amber-700`}>
                 <RotateCcw className="mr-1.5 h-4 w-4" /> Play Again
               </Button>
             </motion.div>

@@ -45,8 +45,6 @@ import {
   Music2,
   Check,
   Users,
-  ArrowUp,
-  ArrowDown,
   ArrowLeft,
   ArrowRight,
   X,
@@ -58,8 +56,6 @@ type GameState =
   | 'idle'
   | 'countdown'
   | 'dancing'
-  | 'freeze'
-  | 'frozen'
   | 'gameover'
 
 type ScoreEntry = {
@@ -72,9 +68,9 @@ type ScoreEntry = {
   createdAt: string
 }
 
-type FailReason = 'early' | 'late' | null
+type FailReason = 'miss' | null
 type PlayerMode = 'solo' | 'duo'
-type ArrowDirection = 'up' | 'down' | 'left' | 'right'
+type ArrowDirection = 'left' | 'right'
 
 type ArrowEvent = {
   id: number
@@ -103,27 +99,21 @@ type DuoPlayerState = {
 
 // ── Arrow helpers ──────────────────────────────────────────────────────────
 
-const DIRECTIONS: ArrowDirection[] = ['up', 'down', 'left', 'right']
+const DIRECTIONS: ArrowDirection[] = ['left', 'right']
 
 const DIR_ICON = {
-  up: ArrowUp,
-  down: ArrowDown,
   left: ArrowLeft,
   right: ArrowRight,
 }
 
-const DIR_LABEL = { up: '↑', down: '↓', left: '←', right: '→' }
+const DIR_LABEL = { left: '←', right: '→' }
 
 const DIR_COLOR = {
-  up: 'text-emerald-400 border-emerald-400/60 bg-emerald-500/15',
-  down: 'text-rose-400 border-rose-400/60 bg-rose-500/15',
   left: 'text-amber-400 border-amber-400/60 bg-amber-500/15',
   right: 'text-cyan-400 border-cyan-400/60 bg-cyan-500/15',
 }
 
 const DIR_BTN_ACTIVE = {
-  up: 'bg-emerald-600/50 border-emerald-400',
-  down: 'bg-rose-600/50 border-rose-400',
   left: 'bg-amber-600/50 border-amber-400',
   right: 'bg-cyan-600/50 border-cyan-400',
 }
@@ -207,6 +197,8 @@ export default function TelegramGame() {
   const [perfectFreezes, setPerfectFreezes] = useState(0)
   const [arrowsHit, setArrowsHit] = useState(0)
   const [arrowsMissed, setArrowsMissed] = useState(0)
+  const [misses, setMisses] = useState(0)
+  const MAX_MISSES = 5
   const [personalBest, setPersonalBest] = useState<number | null>(() => {
     if (typeof window === 'undefined') return null
     try {
@@ -280,9 +272,8 @@ export default function TelegramGame() {
   )
 
   const playerName = user?.fullName || user?.username || 'Dancer'
-  const isPlaying = state === 'dancing' || state === 'freeze' || state === 'frozen'
+  const isPlaying = state === 'dancing'
   const dancing = state === 'dancing'
-  const showFreezeOverlay = state === 'freeze'
   const isCountdown = state === 'countdown'
 
   // ── Sync refs ───────────────────────────────────────────────────────────
@@ -384,9 +375,6 @@ export default function TelegramGame() {
   // ── Handler refs (avoid stale closures) ─────────────────────────────────
 
   const gameOverRef = useRef<(r: FailReason) => void>(() => {})
-  const triggerFreezeRef = useRef<() => void>(() => {})
-  const scheduleMusicStopRef = useRef<() => void>(() => {})
-  const onAllFrozenRef = useRef<() => void>(() => {})
   const soloArrowTapRef = useRef<(dir: ArrowDirection) => void>(() => {})
   const duoArrowTapRef = useRef<(playerIdx: number, dir: ArrowDirection) => void>(() => {})
   const spawnSoloArrowRef = useRef<() => void>(() => {})
@@ -424,7 +412,7 @@ export default function TelegramGame() {
 
   const spawnSoloArrow = useCallback(() => {
     if (stateRef.current !== 'dancing') return
-    const dir = DIRECTIONS[Math.floor(Math.random() * 4)]
+    const dir = DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)]
     const win = getArrowHitWindow(engineRef.current)
     const arrow: ArrowEvent = { id: nextArrowId(), direction: dir, spawnedAt: performance.now(), hitWindow: win }
     setCurrentArrow(arrow)
@@ -440,10 +428,16 @@ export default function TelegramGame() {
         setHitFeedback('miss')
         setCombo(0)
         setArrowsMissed(a => a + 1)
+        setMisses(m => {
+          const nm = m + 1
+          if (nm >= MAX_MISSES) {
+            gameOverRef.current('miss')
+          }
+          return nm
+        })
         hapticError()
         showFlash('Miss! ✗')
         setTimeout(() => setHitFeedback(null), 400)
-        // Spawn next via ref to avoid circular dep
         arrowSpawnTimer.current = setTimeout(() => spawnSoloArrowRef.current(), getArrowInterval(engineRef.current))
       }
     }, win)
@@ -453,13 +447,6 @@ export default function TelegramGame() {
 
   const handleSoloArrowTap = useCallback((dir: ArrowDirection) => {
     const s = stateRef.current
-
-    // During freeze: any tap = game over
-    if (s === 'freeze') {
-      gameOverRef.current('early')
-      return
-    }
-
     if (s !== 'dancing') return
 
     const arrow = currentArrowRef.current
@@ -496,17 +483,23 @@ export default function TelegramGame() {
 
       setTimeout(() => setHitFeedback(null), 400)
 
-      // Spawn next arrow after short delay
+      // Spawn next arrow on the beat
       arrowSpawnTimer.current = setTimeout(() => spawnSoloArrowRef.current(), getArrowInterval(engineRef.current))
     } else {
-      // WRONG direction
+      // WRONG direction = miss, reset combo
       setCurrentArrow(null)
       setHitFeedback('wrong')
       setCombo(0)
+      setMisses(m => {
+        const nm = m + 1
+        if (nm >= MAX_MISSES) {
+          gameOverRef.current('miss')
+        }
+        return nm
+      })
       hapticError()
       showFlash('Wrong! ✗')
       setTimeout(() => setHitFeedback(null), 400)
-      // Spawn next after slightly longer delay
       arrowSpawnTimer.current = setTimeout(() => spawnSoloArrowRef.current(), getArrowInterval(engineRef.current))
     }
   }, [showFlash])
@@ -539,7 +532,19 @@ export default function TelegramGame() {
         setTimeout(() => {
           setDuoPlayers(prev => prev.map((p, i) => i === playerIdx ? { ...p, hitFeedback: null } : p))
         }, 400)
-        duoSpawnTimers.current[playerIdx] = setTimeout(() => spawnDuoArrowRef.current(playerIdx), getArrowInterval(engineRef.current))
+        // Check elimination
+        const cp = duoPlayersRef.current[playerIdx]
+        if (cp && cp.arrowsMissed + 1 >= 5) {
+          setDuoPlayers(prev => prev.map((p, i) =>
+            i === playerIdx ? { ...p, alive: false, failReason: 'miss' as const } : p
+          ))
+          setTimeout(() => {
+            const cur2 = duoPlayersRef.current
+            if (cur2.every(p => !p.alive)) duoGameOverRef.current()
+          }, 100)
+        } else {
+          duoSpawnTimers.current[playerIdx] = setTimeout(() => spawnDuoArrowRef.current(playerIdx), getArrowInterval(engineRef.current))
+        }
       }
     }, win)
   }, [])
@@ -548,26 +553,6 @@ export default function TelegramGame() {
 
   const handleDuoArrowTap = useCallback((playerIdx: number, dir: ArrowDirection) => {
     const s = stateRef.current
-
-    // During freeze: any tap = eliminate that player
-    if (s === 'freeze') {
-      const player = duoPlayersRef.current[playerIdx]
-      if (!player?.alive) return
-      hapticError()
-      setScreenShake(true)
-      setTimeout(() => setScreenShake(false), 300)
-      setDuoPlayers(prev => prev.map((p, i) =>
-        i === playerIdx ? { ...p, alive: false, failReason: 'early' as const, currentArrow: null } : p
-      ))
-      showFlash(`${player.name}: Can't stop! 💀`)
-      // Check if all eliminated
-      setTimeout(() => {
-        const cur = duoPlayersRef.current
-        if (cur.every(p => !p.alive)) duoGameOverRef.current()
-      }, 100)
-      return
-    }
-
     if (s !== 'dancing') return
 
     const player = duoPlayersRef.current[playerIdx]
@@ -612,13 +597,25 @@ export default function TelegramGame() {
 
       duoSpawnTimers.current[playerIdx] = setTimeout(() => spawnDuoArrowRef.current(playerIdx), getArrowInterval(engineRef.current))
     } else {
+      // Wrong direction = miss + add player miss count
       setDuoPlayers(prev => prev.map((p, i) =>
-        i === playerIdx ? { ...p, currentArrow: null, hitFeedback: 'wrong' as const, combo: 0 } : p
+        i === playerIdx ? { ...p, currentArrow: null, hitFeedback: 'wrong' as const, combo: 0, arrowsMissed: p.arrowsMissed + 1 } : p
       ))
       hapticError()
       setTimeout(() => {
         setDuoPlayers(prev => prev.map((p, i) => i === playerIdx ? { ...p, hitFeedback: null } : p))
       }, 400)
+      // Check if player should be eliminated (5 misses)
+      const cp = duoPlayersRef.current[playerIdx]
+      if (cp && cp.arrowsMissed + 1 >= 5) {
+        setDuoPlayers(prev => prev.map((p, i) =>
+          i === playerIdx ? { ...p, alive: false, failReason: 'miss' as const } : p
+        ))
+        setTimeout(() => {
+          const cur = duoPlayersRef.current
+          if (cur.every(p => !p.alive)) duoGameOverRef.current()
+        }, 100)
+      }
       duoSpawnTimers.current[playerIdx] = setTimeout(() => spawnDuoArrowRef.current(playerIdx), getArrowInterval(engineRef.current))
     }
   }, [showFlash])
@@ -718,135 +715,6 @@ export default function TelegramGame() {
     setTimeout(() => setShared(false), 2000)
   }, [score, arrowsHit, arrowsMissed, freezes, bestCombo, lastSavedRank])
 
-  // ── Trigger freeze (music stops) ────────────────────────────────────────
-
-  const triggerFreeze = useCallback(() => {
-    setState('freeze')
-    stopDanceTimer()
-    clearAllArrowTimers()
-    setCurrentArrow(null)
-    setDuoPlayers(prev => prev.map(p => ({ ...p, currentArrow: null, hitFeedback: null })))
-    engineRef.current?.stop()
-    hapticHeavy()
-
-    const win = getFreezeWindow(roundRef.current)
-    freezeWindowRef.current = win
-    freezeStartRef.current = performance.now()
-    setFreezeProgress(1)
-
-    setScreenShake(true)
-    setTimeout(() => setScreenShake(false), 450)
-
-    // Progress bar animation
-    const animate = () => {
-      const elapsed = performance.now() - freezeStartRef.current
-      const remaining = Math.max(0, 1 - elapsed / win)
-      setFreezeProgress(remaining)
-      if (remaining > 0 && remaining < 0.3 && remaining > 0.25) hapticWarning()
-      if (remaining > 0 && stateRef.current === 'freeze') {
-        freezeAnimRef.current = requestAnimationFrame(animate)
-      }
-    }
-    freezeAnimRef.current = requestAnimationFrame(animate)
-
-    // When freeze window expires → success (survived!)
-    freezeWindowTimer.current = setTimeout(() => {
-      if (stateRef.current !== 'freeze') return
-      if (playerModeRef.current === 'duo') {
-        // Duo: eliminate anyone who didn't survive (tapped during freeze)
-        // If they're still alive, they survived
-        setDuoPlayers(prev => prev.map(p => {
-          if (!p.alive) return p
-          return { ...p, frozenThisRound: true }
-        }))
-        setTimeout(() => {
-          const current = duoPlayersRef.current
-          if (current.every(p => !p.alive)) {
-            duoGameOverRef.current()
-          } else {
-            onAllFrozenRef.current()
-          }
-        }, 100)
-      } else {
-        // Solo: freeze success
-        onAllFrozenRef.current()
-      }
-    }, win)
-  }, [stopDanceTimer, clearAllArrowTimers])
-
-  // ── Schedule music stop ─────────────────────────────────────────────────
-
-  const scheduleMusicStop = useCallback(() => {
-    if (musicStopTimer.current) clearTimeout(musicStopTimer.current)
-    const dur = randMusicDuration(roundRef.current)
-    musicStopTimer.current = setTimeout(() => {
-      triggerFreezeRef.current()
-    }, dur)
-  }, [])
-
-  // ── On freeze success (solo + duo shared) ───────────────────────────────
-
-  const onAllFrozen = useCallback(() => {
-    if (freezeWindowTimer.current) clearTimeout(freezeWindowTimer.current)
-    if (freezeAnimRef.current) cancelAnimationFrame(freezeAnimRef.current)
-    if (frozenResumeTimer.current) clearTimeout(frozenResumeTimer.current)
-
-    setState('frozen')
-    const newRound = roundRef.current + 1
-    roundRef.current = newRound
-    setRound(newRound)
-
-    // Add freeze points
-    const newCombo = comboRef.current + 1
-    const mult = getComboMult(newCombo)
-    const freezePoints = Math.floor(100 * mult)
-    setFreezes(f => f + 1)
-    setCombo(newCombo)
-    if (newCombo > bestComboRef.current) setBestCombo(newCombo)
-
-    // Duo: give freeze points to alive players
-    if (playerModeRef.current === 'duo') {
-      setDuoPlayers(prev => prev.map(p => {
-        if (!p.alive) return p
-        const pmult = getComboMult(p.combo + 1)
-        return {
-          ...p,
-          freezes: p.freezes + 1,
-          combo: p.combo + 1,
-          bestCombo: Math.max(p.bestCombo, p.combo + 1),
-          score: p.score + Math.floor(100 * pmult),
-          frozenThisRound: false,
-        }
-      }))
-    }
-
-    if (soundOnRef.current) engineRef.current?.sting('success')
-    hapticSuccess()
-    showFlash(`FREEZE! +${freezePoints} 🔥${newCombo}`)
-
-    // Resume after delay
-    frozenResumeTimer.current = setTimeout(() => {
-      if (stateRef.current !== 'frozen') return
-      const pm = playerModeRef.current
-      if (pm === 'duo') {
-        const current = duoPlayersRef.current
-        if (current.every(p => !p.alive)) { duoGameOverRef.current(); return }
-      }
-      setState('dancing')
-      if (soundOnRef.current) engineRef.current?.start()
-      startDanceTimer()
-      scheduleMusicStopRef.current()
-
-      // Resume arrow spawning
-      if (pm === 'solo') {
-        spawnSoloArrowRef.current()
-      } else {
-        const current = duoPlayersRef.current
-        current.forEach((p, i) => { if (p.alive) spawnDuoArrowRef.current(i) })
-      }
-    }, 1300)
-  }, [showFlash, startDanceTimer])
-
   // ── Duo game over ───────────────────────────────────────────────────────
 
   const duoGameOver = useCallback(async () => {
@@ -889,9 +757,6 @@ export default function TelegramGame() {
 
   useEffect(() => {
     gameOverRef.current = gameOver
-    triggerFreezeRef.current = triggerFreeze
-    scheduleMusicStopRef.current = scheduleMusicStop
-    onAllFrozenRef.current = onAllFrozen
     soloArrowTapRef.current = handleSoloArrowTap
     duoArrowTapRef.current = handleDuoArrowTap
     spawnSoloArrowRef.current = spawnSoloArrow
@@ -908,7 +773,6 @@ export default function TelegramGame() {
     engineRef.current.setVolume(0.5)
     await engineRef.current.start()
     startDanceTimer()
-    scheduleMusicStop()
 
     // Start arrow spawning
     if (playerModeRef.current === 'solo') {
@@ -918,7 +782,7 @@ export default function TelegramGame() {
         duoPlayersRef.current.forEach((p, i) => { if (p.alive) spawnDuoArrowRef.current(i) })
       }, 500)
     }
-  }, [startDanceTimer, scheduleMusicStop])
+  }, [startDanceTimer])
 
   // ── Start game ──────────────────────────────────────────────────────────
 
@@ -939,6 +803,7 @@ export default function TelegramGame() {
       setPerfectFreezes(0)
       setArrowsHit(0)
       setArrowsMissed(0)
+      setMisses(0)
       setIsNewBest(false)
       setShared(false)
       setCurrentArrow(null)
@@ -982,12 +847,6 @@ export default function TelegramGame() {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#1a1410]/50 via-[#1a1410]/65 to-[#0e0a06]" />
       <div className="pointer-events-none absolute inset-0 spotlight-glow" />
 
-      {/* Freeze flash */}
-      <AnimatePresence>
-        {showFreezeOverlay && (
-          <motion.div key="freeze-flash" initial={{ opacity: 0 }} animate={{ opacity: [0, 0.5, 0.2] }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }} className="pointer-events-none absolute inset-0 z-30 bg-red-600/40 mix-blend-screen" />
-        )}
-      </AnimatePresence>
 
       {/* Countdown overlay */}
       <AnimatePresence>
@@ -1048,6 +907,10 @@ export default function TelegramGame() {
               <span className="font-mono text-base font-black text-cyan-300">{bpm}</span>
             </div>
             <div className="flex flex-col items-center leading-none">
+              <span className="text-[9px] uppercase tracking-wider text-amber-300/60">Misses</span>
+              <span className="font-mono text-base font-black text-rose-300">{misses}/{MAX_MISSES}</span>
+            </div>
+            <div className="flex flex-col items-center leading-none">
               <span className="text-[9px] uppercase tracking-wider text-amber-300/60">Dance</span>
               <span className="font-mono text-base font-black text-emerald-300">{danceSeconds.toFixed(1)}s</span>
             </div>
@@ -1067,22 +930,10 @@ export default function TelegramGame() {
                 Tap the arrows!
               </motion.div>
             )}
-            {showFreezeOverlay && (
-              <motion.div key="freeze" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex items-center gap-1.5 text-sm font-black text-red-400">
-                <AlertTriangle className="h-4 w-4 animate-ping" />
-                DON&apos;T TAP!
-              </motion.div>
-            )}
-            {state === 'frozen' && (
-              <motion.div key="frozen" initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.6 }} className="flex items-center gap-1.5 text-sm font-black text-emerald-300">
-                <Zap className="h-4 w-4" />
-                {playerMode === 'duo' ? 'Nice!' : 'Nice freeze!'}
-              </motion.div>
-            )}
             {state === 'gameover' && (
               <motion.div key="over" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-1.5 text-xs font-black text-red-400">
                 <Skull className="h-3.5 w-3.5" />
-                {failReason === 'early' ? (playerMode === 'solo' ? "Can't stop!" : 'Too early!') : 'Too slow!'}
+                'Too many misses!'
               </motion.div>
             )}
           </AnimatePresence>
@@ -1093,7 +944,7 @@ export default function TelegramGame() {
           <div className="relative flex h-36 w-full flex-col items-center justify-center gap-2">
             {/* Arrow display */}
             {(dancing || state === 'freeze') && (
-              <ArrowDisplay arrow={showFreezeOverlay ? null : currentArrow} feedback={hitFeedback} />
+              <ArrowDisplay arrow={false ? null : currentArrow} feedback={hitFeedback} />
             )}
 
             {/* Character (smaller, above buttons) */}
@@ -1141,7 +992,7 @@ export default function TelegramGame() {
                   </div>
 
                   {/* Duo arrow display */}
-                  {isPlaying && !showFreezeOverlay && (
+                  {isPlaying && !false && (
                     <div className="relative z-10 mb-0.5">
                       <ArrowDisplay arrow={player.currentArrow} feedback={player.hitFeedback} />
                     </div>
@@ -1190,7 +1041,7 @@ export default function TelegramGame() {
 
                   <p className="text-center text-[11px] leading-snug text-amber-200/60">
                     Tap the matching arrow when it appears!
-                    When music stops — DON&apos;T tap anything! 🎯
+                    Hit the arrows in time! Miss 5 = game over. 🎯
                   </p>
 
                   {personalBest !== null && (
@@ -1219,7 +1070,7 @@ export default function TelegramGame() {
                   </div>
 
                   <p className="text-center text-[11px] leading-snug text-amber-200/60">
-                    Each player has their own arrows! When music stops — DON&apos;T tap! 🔥
+                    Each player has their own arrows! Miss 5 arrows = eliminated! 🔥
                   </p>
 
                   {!isTelegramApp && (
@@ -1329,7 +1180,7 @@ export default function TelegramGame() {
                         {isWinner && <Crown className="h-3.5 w-3.5 text-amber-300" />}
                         <span className={`text-xs font-black ${!player.alive ? 'line-through text-red-400' : isP1 ? 'text-amber-200' : 'text-cyan-200'}`}>{player.name}</span>
                       </div>
-                      {!player.alive && <span className="text-[9px] text-red-400/80">{player.failReason === 'early' ? 'Too early' : 'Too slow'}</span>}
+                      {!player.alive && <span className="text-[9px] text-red-400/80">'Missed too many!'</span>}
                       <span className="font-mono text-lg font-black text-amber-200">{player.score}</span>
                       <div className="grid grid-cols-3 gap-0.5 w-full">
                         <div className="flex flex-col items-center rounded bg-black/20 px-0.5 py-0.5">
@@ -1366,7 +1217,7 @@ export default function TelegramGame() {
               {/* Freeze progress bar */}
               <div className="h-1.5 w-full max-w-[180px] overflow-hidden rounded-full bg-white/10">
                 <AnimatePresence>
-                  {showFreezeOverlay && (
+                  {false && (
                     <motion.div key="solo-progress-bar" initial={{ width: '100%' }} className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500" style={{ width: `${freezeProgress * 100}%` }} />
                   )}
                 </AnimatePresence>
@@ -1374,15 +1225,13 @@ export default function TelegramGame() {
 
               {/* D-Pad */}
               <div className="grid grid-cols-3 grid-rows-3 gap-1">
-                <DPadButton dir="up" onTap={() => soloArrowTapRef.current('up')} disabled={state === 'frozen' || state === 'countdown'} danger={showFreezeOverlay} />
-                <DPadButton dir="left" onTap={() => soloArrowTapRef.current('left')} disabled={state === 'frozen' || state === 'countdown'} danger={showFreezeOverlay} />
-                <DPadButton dir="right" onTap={() => soloArrowTapRef.current('right')} disabled={state === 'frozen' || state === 'countdown'} danger={showFreezeOverlay} />
-                <DPadButton dir="down" onTap={() => soloArrowTapRef.current('down')} disabled={state === 'frozen' || state === 'countdown'} danger={showFreezeOverlay} />
+                <DPadButton dir="left" onTap={() => soloArrowTapRef.current('left')} disabled={state === 'countdown'} danger={false} />
+                <DPadButton dir="right" onTap={() => soloArrowTapRef.current('right')} disabled={state === 'countdown'} danger={false} />
               </div>
 
-              {showFreezeOverlay && (
+              {false && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs font-bold text-red-400 animate-pulse">
-                  ⚠️ DON&apos;T TAP!
+                  
                 </motion.div>
               )}
               {state === 'frozen' && (
@@ -1398,7 +1247,7 @@ export default function TelegramGame() {
               {/* Freeze progress bar */}
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                 <AnimatePresence>
-                  {showFreezeOverlay && (
+                  {false && (
                     <motion.div key="duo-progress-bar" initial={{ width: '100%' }} className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500" style={{ width: `${freezeProgress * 100}%` }} />
                   )}
                 </AnimatePresence>
@@ -1417,19 +1266,17 @@ export default function TelegramGame() {
                         {player.name}
                       </span>
                       <div className={`grid grid-cols-3 grid-rows-3 gap-1 ${!isAlive ? 'opacity-30' : ''}`}>
-                        <DPadButton dir="up" size={44} onTap={() => duoArrowTapRef.current(i, 'up')} disabled={disabled} danger={showFreezeOverlay && isAlive} />
-                        <DPadButton dir="left" size={44} onTap={() => duoArrowTapRef.current(i, 'left')} disabled={disabled} danger={showFreezeOverlay && isAlive} />
-                        <DPadButton dir="right" size={44} onTap={() => duoArrowTapRef.current(i, 'right')} disabled={disabled} danger={showFreezeOverlay && isAlive} />
-                        <DPadButton dir="down" size={44} onTap={() => duoArrowTapRef.current(i, 'down')} disabled={disabled} danger={showFreezeOverlay && isAlive} />
+                        <DPadButton dir="left" size={44} onTap={() => duoArrowTapRef.current(i, 'left')} disabled={disabled} danger={false && isAlive} />
+                        <DPadButton dir="right" size={44} onTap={() => duoArrowTapRef.current(i, 'right')} disabled={disabled} danger={false && isAlive} />
                       </div>
                     </div>
                   )
                 })}
               </div>
 
-              {showFreezeOverlay && (
+              {false && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs font-bold text-red-400 animate-pulse">
-                  ⚠️ DON&apos;T TAP!
+                  
                 </motion.div>
               )}
             </motion.div>

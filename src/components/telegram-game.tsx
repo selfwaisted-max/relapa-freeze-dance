@@ -415,6 +415,7 @@ export default function TelegramGame() {
   const duoArrowTapRef = useRef<(playerIdx: number, dir: ArrowDirection) => void>(() => {})
   const spawnSoloArrowRef = useRef<() => void>(() => {})
   const spawnDuoArrowRef = useRef<(i: number) => void>(() => {})
+  const duoGameOverRef = useRef<() => void>(() => {})
 
   // ── Core timers ─────────────────────────────────────────────────────────
 
